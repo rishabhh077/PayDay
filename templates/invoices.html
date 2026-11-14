@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% from "_ui.html" import chip, when, totals, land %}
+{% set titles = {"unpaid": "Unpaid", "paid": "Paid", "archived": "Archived"} %}
+{% block title %}{{ titles[tab] }} invoices{% endblock %}
+
+{% macro table(rows, first) %}
+<div class="sheet">
+<table>
+  <thead><tr><th class="col-due">{{ first }}</th><th class="col-who">Client</th><th>For</th><th class="num col-amt">Amount</th></tr></thead>
+  <tbody>
+  {% for r in rows %}
+  <tr>
+    <td class="due">
+      {%- if tab == "paid" %}{{ (r.paid_on or r.due_date)|d }}
+      {%- else %}{{ r.due_date|d }}{% if tab == "unpaid" %}<span class="when">{{ when(r.days) }}</span>{% endif %}{% endif -%}
+    </td>
+    <td class="who"><a href="{{ url_for('invoice', invoice_id=r.id) }}">{{ r.client_name }}</a></td>
+    <td class="for">{{ r.description }}</td>
+    <td class="num">{{ r.currency }} {{ r.amount|money }}</td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endmacro %}
+
+{% block main %}
+{% call land("list") %}
+<h1>{{ titles[tab] }}</h1>
+{% if tab == "unpaid" and count %}
+<p class="lede">{{ totals(unpaid_total) }} across {{ count }} invoice{{ "s" if count != 1 }}.
+  {% if overdue %}{{ totals(overdue_total) }} is late.{% else %}Nothing is late.{% endif %}</p>
+{% elif tab == "unpaid" %}
+<p class="lede">Nothing is waiting to be paid.</p>
+{% else %}
+<p class="lede">{{ count }} invoice{{ "s" if count != 1 }}.</p>
+{% endif %}
+{% endcall %}
+
+<nav class="tabs" aria-label="Invoice status">
+  {% for key, label in titles.items() %}
+  <a class="cap bare line" href="{{ url_for('invoices', tab=key) }}" {% if key == tab %}aria-current="page"{% endif %}>{{ label }}</a>
+  {% endfor %}
+</nav>
+
+{% if overdue %}
+<h2>Overdue <span class="tag coral">{{ overdue|length }}</span></h2>
+{{ table(overdue, "Due") }}
+{% endif %}
+
+{% if upcoming %}
+{% if tab == "unpaid" %}<h2>Due <span class="tag">{{ upcoming|length }}</span></h2>{% endif %}
+{{ table(upcoming, "Paid on" if tab == "paid" else "Due") }}
+{% endif %}
+
+{% if not count %}
+<h2>{{ "No unpaid invoices" if tab == "unpaid" else "Nothing here yet" }}</h2>
+<div class="sheet empty">
+  {% if tab == "unpaid" %}
+  <p>Add an invoice when you send it to a client. It appears here, sorted by due date, until you mark it paid.</p>
+  <a class="cap" href="{{ url_for('invoice_form') }}">New invoice {{ chip("plus") }}</a>
+  {% elif tab == "paid" %}
+  <p>Invoices you mark as paid move here.</p>
+  {% else %}
+  <p>Invoices you archive move here.</p>
+  {% endif %}
+</div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,29 @@
+{% from "_ui.html" import chip, icon %}
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}Invoices{% endblock %} · PayDay</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="top">
+  <a class="brand" href="{{ url_for('invoices') }}">PayDay</a>
+  <nav aria-label="Main">
+    <a href="{{ url_for('invoices') }}" {% if request.endpoint != 'invoice_form' or inv %}aria-current="page"{% endif %}>Invoices</a>
+  </nav>
+  <a class="cap" href="{{ url_for('invoice_form') }}">New invoice {{ chip("plus") }}</a>
+</header>
+<main id="main">
+  {% for message in get_flashed_messages() %}
+  <p class="flash" role="status"><span class="chip">{{ icon("check") }}</span>{{ message }}</p>
+  {% endfor %}
+  {% block main %}{% endblock %}
+</main>
+</body>
+</html>

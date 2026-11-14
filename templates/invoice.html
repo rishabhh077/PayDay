@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% from "_ui.html" import chip, icon, when, land %}
+{% block title %}{{ inv.client_name }}{% endblock %}
+
+{% block main %}
+{% call land("detail") %}
+<a class="cap line lead back" href="{{ url_for('invoices', tab='unpaid' if inv.status == 'open' else inv.status) }}">{{ chip("back") }} Back to invoices</a>
+<h1>{{ inv.client_name }}</h1>
+<p class="lede"><span class="n">{{ inv.currency }} {{ inv.amount|money }}</span>
+  {% if inv.status == "open" %}due {{ inv.due_date|d }}.
+  {% elif inv.status == "paid" %}paid on {{ inv.paid_on|d }}.
+  {% else %}archived.{% endif %}</p>
+{% endcall %}
+
+<div class="sheet">
+<dl class="facts">
+  <dt>Status</dt>
+  <dd>
+    {%- if inv.status == "open" and inv.days < 0 %}Overdue, {{ when(inv.days)|lower }}
+    {%- elif inv.status == "open" %}Open, {{ when(inv.days)|lower }}
+    {%- elif inv.status == "paid" %}Paid
+    {%- else %}Archived{% endif -%}
+  </dd>
+  <dt>Client email</dt><dd>{{ inv.client_email }}</dd>
+  <dt>Amount</dt><dd>{{ inv.currency }} {{ inv.amount|money }}</dd>
+  <dt>Due date</dt><dd>{{ inv.due_date|d }}</dd>
+  {% if inv.paid_on %}<dt>Paid on</dt><dd>{{ inv.paid_on|d }}</dd>{% endif %}
+  <dt>For</dt><dd>{{ inv.description or "No description" }}</dd>
+</dl>
+</div>
+
+<div class="actions">
+  {% if inv.status == "open" %}
+  <form class="pay" method="post" action="{{ url_for('mark_paid', invoice_id=inv.id) }}">
+    {{ csrf_field() }}
+    <div class="paid-on">
+      <label for="paid_on">Date paid</label>
+      <input type="date" id="paid_on" name="paid_on" value="{{ today }}" required>
+    </div>
+    <button class="cap land">Mark as paid {{ chip("check") }}</button>
+  </form>
+  <a class="cap sky" href="{{ url_for('invoice_form', invoice_id=inv.id) }}">Edit {{ chip() }}</a>
+  {% endif %}
+  {% if inv.status != "archived" %}
+  <form method="post" action="{{ url_for('archive', invoice_id=inv.id) }}">
+    {{ csrf_field() }}
+    <button class="cap lilac">Archive {{ chip() }}</button>
+  </form>
+  {% endif %}
+  <details class="danger">
+    <summary class="cap bare line">Delete</summary>
+    <form method="post" action="{{ url_for('delete', invoice_id=inv.id) }}">
+      {{ csrf_field() }}
+      <button class="cap coral">Delete this invoice {{ chip() }}</button>
+    </form>
+  </details>
+</div>
+{% endblock %}

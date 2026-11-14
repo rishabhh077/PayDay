@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% from "_ui.html" import chip, land %}
+{% block title %}{{ "Edit invoice" if inv else "New invoice" }}{% endblock %}
+
+{% macro field(name, label, type="text", hint="", attrs="") %}
+<div class="field">
+  <label for="{{ name }}">{{ label }}{% if hint %} <span class="hint">{{ hint }}</span>{% endif %}</label>
+  <input type="{{ type }}" id="{{ name }}" name="{{ name }}" value="{{ v.get(name, '') }}" {{ attrs|safe }}
+    {% if errors.get(name) %}aria-invalid="true" aria-describedby="{{ name }}-error"{% endif %}>
+  {% if errors.get(name) %}<p class="error" id="{{ name }}-error">{{ errors[name] }}</p>{% endif %}
+</div>
+{% endmacro %}
+
+{% block main %}
+{% call land("form") %}
+<h1>{{ "Edit invoice" if inv else "New invoice" }}</h1>
+<p class="lede">Enter the details from the invoice you sent.</p>
+{% endcall %}
+
+<form class="sheet form" method="post" novalidate>
+  {{ csrf_field() }}
+  {{ field("client_name", "Client name", attrs='autocomplete="off" required') }}
+  {{ field("client_email", "Client email", type="email", attrs='autocomplete="off" required') }}
+  <div class="pair">
+    {{ field("amount", "Amount", attrs='inputmode="decimal" placeholder="12500.00" required') }}
+    {{ field("currency", "Currency", attrs='maxlength="3" autocapitalize="characters" required') }}
+  </div>
+  {{ field("due_date", "Due date", type="date", attrs="required") }}
+  {{ field("description", "What it is for", hint="Optional", attrs='maxlength="200"') }}
+  <div class="actions">
+    <button class="cap">Save invoice {{ chip("check") }}</button>
+    <a class="cap bare line" href="{{ url_for('invoice', invoice_id=inv.id) if inv else url_for('invoices') }}">Cancel</a>
+  </div>
+</form>
+{% endblock %}

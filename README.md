@@ -21,3 +21,4 @@ Then open http://localhost:5055. The database is one file, `payday.db`, created 
 ```bash
 .venv/bin/python tests.py
 ```
+

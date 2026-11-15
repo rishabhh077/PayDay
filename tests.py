@@ -1,4 +1,4 @@
-"""Phase 1 and 2 checks. Run: python tests.py"""
+"""Phase 1 to 4 checks. Run: python tests.py"""
 import os
 import tempfile
 from datetime import date, timedelta
@@ -183,6 +183,204 @@ def test_first_account_adopts_phase_1_invoices():
         assert "Old Client" not in c2.get("/invoices").get_data(as_text=True)
     finally:
         payday.app.config["DB"] = saved
+
+
+# --- Phase 3: reminders ---
+
+def _post_invoice(c, due):
+    post(c, "/invoices/new", **{**GOOD, "client_name": "Rem", "due_date": due})
+    return rows("SELECT MAX(id) FROM invoices")[0][0]
+
+
+def _reminders(inv_id):
+    return {r["type"]: r for r in rows("SELECT * FROM reminders WHERE invoice_id=?", inv_id)}
+
+
+def test_reminders_created_at_10am_local():
+    c = client("rem1@example.com")
+    inv = _post_invoice(c, "2099-06-10")
+    r = _reminders(inv)
+    # Default zone Asia/Kolkata (UTC+5:30): 10:00 local = 04:30 UTC.
+    assert r["before_due"]["scheduled_for"] == "2099-06-07T04:30:00+00:00"
+    assert r["after_due"]["scheduled_for"] == "2099-06-11T04:30:00+00:00"
+    assert all(x["status"] == "pending" and x["sent_at"] is None for x in r.values())
+    assert "scheduled, not sent yet" in c.get(f"/invoices/{inv}").get_data(as_text=True)
+
+
+def test_past_before_due_is_skipped():
+    c = client("rem2@example.com")
+    inv = _post_invoice(c, "2020-01-10")
+    r = _reminders(inv)
+    assert "before_due" not in r and "after_due" in r
+
+
+def test_edit_moves_reminders_without_duplicates():
+    c = client("rem3@example.com")
+    inv = _post_invoice(c, "2099-06-10")
+    post(c, f"/invoices/{inv}/edit", **{**GOOD, "client_name": "Rem", "due_date": "2099-07-01"})
+    assert len(rows("SELECT * FROM reminders WHERE invoice_id=?", inv)) == 2
+    assert _reminders(inv)["after_due"]["scheduled_for"] == "2099-07-02T04:30:00+00:00"
+
+
+def test_paid_and_archived_cancel_reminders():
+    c = client("rem4@example.com")
+    a, b = _post_invoice(c, "2099-08-10"), _post_invoice(c, "2099-08-11")
+    post(c, f"/invoices/{a}/paid")
+    post(c, f"/invoices/{b}/archive")
+    for inv in (a, b):
+        assert {x["status"] for x in _reminders(inv).values()} == {"cancelled"}
+
+
+def test_delete_removes_reminders():
+    c = client("rem5@example.com")
+    inv = _post_invoice(c, "2099-09-10")
+    post(c, f"/invoices/{inv}/delete")
+    assert rows("SELECT * FROM reminders WHERE invoice_id=?", inv) == []
+
+
+# --- Phase 4: sending ---
+
+def _make_due(inv, kind="before_due"):
+    """Pretend the reminder's time has arrived. Other tests' leftovers are cancelled so they cannot send."""
+    db = payday.connect()
+    db.execute("UPDATE reminders SET status='cancelled' WHERE status='pending' AND invoice_id != ?", (inv,))
+    db.execute("UPDATE reminders SET scheduled_for='2000-01-01T00:00:00+00:00' WHERE invoice_id=? AND type=?", (inv, kind))
+    db.commit()
+    db.close()
+
+
+class _Outbox:
+    def __init__(self, fail=False):
+        self.msgs, self.fail = [], fail
+
+    def __call__(self, msg):
+        if self.fail:
+            raise payday.SendError("boom")
+        self.msgs.append(msg)
+
+
+def _with_outbox(outbox):
+    saved = payday.smtp_send
+    payday.smtp_send = outbox
+    return saved
+
+
+def test_due_reminder_goes_to_owner_only_and_only_once():
+    c = client("send1@example.com")
+    inv = _post_invoice(c, "2099-06-10")
+    box = _Outbox()
+    saved = _with_outbox(box)
+    try:
+        _make_due(inv, "none")  # clears other tests' leftovers; nothing of ours is due yet
+        assert payday.send_due_reminders() == (0, 0)
+        _make_due(inv)
+        assert payday.send_due_reminders() == (1, 0)
+        assert payday.send_due_reminders() == (0, 0)  # never twice
+    finally:
+        payday.smtp_send = saved
+    assert len(box.msgs) == 1
+    m = box.msgs[0]
+    assert m["To"] == "send1@example.com" and "kavya@example.com" in m.get_content()
+    r = _reminders(inv)
+    assert r["before_due"]["status"] == "sent" and r["before_due"]["sent_at"]
+    assert r["after_due"]["status"] == "pending"
+
+
+def test_paid_invoice_is_not_sent():
+    c = client("send2@example.com")
+    inv = _post_invoice(c, "2099-06-10")
+    _make_due(inv)
+    post(c, f"/invoices/{inv}/paid")
+    box = _Outbox()
+    saved = _with_outbox(box)
+    try:
+        assert payday.send_due_reminders() == (0, 0)
+    finally:
+        payday.smtp_send = saved
+    assert box.msgs == []
+
+
+def test_failed_send_is_recorded_and_visible():
+    c = client("send3@example.com")
+    inv = _post_invoice(c, "2099-06-10")
+    _make_due(inv)
+    saved = _with_outbox(_Outbox(fail=True))
+    try:
+        assert payday.send_due_reminders() == (0, 1)
+    finally:
+        payday.smtp_send = saved
+    r = _reminders(inv)["before_due"]
+    assert r["status"] == "failed" and r["last_error"] == "boom" and r["sent_at"] is None
+    assert "boom" in c.get(f"/invoices/{inv}").get_data(as_text=True)
+
+
+def test_sent_invoice_is_archived_not_deleted():
+    c = client("send4@example.com")
+    inv = _post_invoice(c, "2099-06-10")
+    _make_due(inv)
+    saved = _with_outbox(_Outbox())
+    try:
+        payday.send_due_reminders()
+    finally:
+        payday.smtp_send = saved
+    post(c, f"/invoices/{inv}/delete")
+    assert rows("SELECT status FROM invoices WHERE id=?", inv)[0][0] == "archived"
+
+
+def test_smtp_not_configured_fails_cleanly():
+    for k in ("SMTP_HOST",):
+        os.environ.pop(k, None)
+    try:
+        payday.smtp_send(payday.EmailMessage())
+        assert False
+    except payday.SendError as e:
+        assert "SMTP_HOST" in str(e)
+
+
+def test_real_smtp_conversation():
+    """Talk to a tiny local SMTP server to check the real smtplib path."""
+    import socketserver
+    import threading
+    got = []
+
+    class H(socketserver.StreamRequestHandler):
+        def handle(self):
+            w = lambda t: self.wfile.write((t + "\r\n").encode())
+            w("220 test")
+            while True:
+                line = self.rfile.readline().decode().strip()
+                if not line:
+                    return
+                cmd = line.upper()
+                if cmd.startswith("EHLO") or cmd.startswith("HELO"):
+                    w("250 ok")
+                elif cmd == "DATA":
+                    w("354 go")
+                    body = []
+                    while (l := self.rfile.readline().decode().rstrip("\r\n")) != ".":
+                        body.append(l)
+                    got.append("\n".join(body))
+                    w("250 queued")
+                elif cmd == "QUIT":
+                    w("221 bye")
+                    return
+                else:
+                    w("250 ok")
+
+    srv = socketserver.TCPServer(("127.0.0.1", 0), H)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    os.environ.update(SMTP_HOST="127.0.0.1", SMTP_PORT=str(srv.server_address[1]),
+                      SMTP_SECURITY="none", SMTP_FROM="payday@example.com")
+    try:
+        user = {"email": "me@example.com", "name": "Me"}
+        inv = {"client_name": "Kavya", "client_email": "k@example.com", "amount": 1000, "currency": "INR",
+               "description": "", "due_date": "2099-01-01"}
+        payday.smtp_send(payday.build_message(user, inv, "after_due"))
+    finally:
+        srv.shutdown()
+        for k in ("SMTP_HOST", "SMTP_PORT", "SMTP_SECURITY", "SMTP_FROM"):
+            os.environ.pop(k, None)
+    assert got and "To: me@example.com" in got[0] and "From: payday@example.com" in got[0]
 
 
 if __name__ == "__main__":

@@ -1,9 +1,13 @@
-"""PayDay, Phase 2: accounts. Each user sees only their own invoices. No email yet."""
+"""PayDay, Phase 4: sending. Due reminders go out over SMTP, to the account owner's own address only."""
+import logging
 import os
 import re
 import secrets
+import smtplib
 import sqlite3
-from datetime import date, datetime, timezone
+import sys
+from email.message import EmailMessage
+from datetime import date, datetime, time, timedelta, timezone
 from decimal import Decimal, InvalidOperation
 from zoneinfo import ZoneInfo
 
@@ -26,6 +30,10 @@ def _secret_key():
 
 app.secret_key = os.environ.get("SECRET_KEY") or _secret_key()
 app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+log = logging.getLogger("payday.reminders")
+log.setLevel(logging.INFO)
+if not log.handlers:
+    log.addHandler(logging.StreamHandler())
 
 
 # --- database ---------------------------------------------------------------
@@ -229,6 +237,152 @@ def parse_invoice(form):
     return v, errors
 
 
+# --- reminders (Phase 3) ----------------------------------------------------
+
+REMINDER_DAYS = {"before_due": -3, "after_due": 1}  # days relative to the due date
+REMINDER_HOUR = 10  # 10:00 in the freelancer's time zone
+
+
+def schedule_for(due_date, kind, tz):
+    """UTC timestamp for a reminder, or None if that moment has already passed (before-due only)."""
+    day = date.fromisoformat(due_date) + timedelta(days=REMINDER_DAYS[kind])
+    when = datetime.combine(day, time(REMINDER_HOUR), tzinfo=tz).astimezone(timezone.utc)
+    if kind == "before_due" and when <= datetime.now(timezone.utc):
+        return None  # never send a "before due" reminder after the fact
+    return when.isoformat(timespec="seconds")
+
+
+def sync_reminders(db, invoice_id, due_date, tz):
+    """Make the reminder rows match the invoice's due date. Sent reminders are never touched."""
+    ts = now()
+    for kind in REMINDER_DAYS:
+        want = schedule_for(due_date, kind, tz)
+        row = db.execute("SELECT * FROM reminders WHERE invoice_id=? AND type=?", (invoice_id, kind)).fetchone()
+        if row and row["status"] == "sent":
+            continue
+        if row is None:
+            if want:
+                db.execute("INSERT INTO reminders (invoice_id, type, scheduled_for, created_at) VALUES (?,?,?,?)",
+                           (invoice_id, kind, want, ts))
+                log.info("reminder created: invoice=%s type=%s scheduled_for=%s", invoice_id, kind, want)
+        elif want:
+            if row["status"] != "pending" or row["scheduled_for"] != want:
+                db.execute("UPDATE reminders SET scheduled_for=?, status='pending', attempts=0, last_error=NULL WHERE id=?",
+                           (want, row["id"]))
+                log.info("reminder rescheduled: invoice=%s type=%s scheduled_for=%s", invoice_id, kind, want)
+        elif row["status"] == "pending":
+            db.execute("UPDATE reminders SET status='cancelled' WHERE id=?", (row["id"],))
+            log.info("reminder cancelled (time passed): invoice=%s type=%s", invoice_id, kind)
+
+
+def cancel_reminders(db, invoice_id):
+    """Stop all pending reminders, used when an invoice is paid or archived."""
+    n = db.execute("UPDATE reminders SET status='cancelled' WHERE invoice_id=? AND status='pending'", (invoice_id,)).rowcount
+    if n:
+        log.info("reminders cancelled: invoice=%s count=%s", invoice_id, n)
+
+
+@app.template_filter("local")
+def fmt_local(iso, fmt="%d %b %Y, %H:%M"):
+    return datetime.fromisoformat(iso).astimezone(user_tz()).strftime(fmt)
+
+
+# --- sending (Phase 4) ------------------------------------------------------
+# Configured by environment variables: SMTP_HOST, SMTP_PORT (587), SMTP_USER, SMTP_PASSWORD,
+# SMTP_FROM (defaults to SMTP_USER), SMTP_SECURITY ("starttls" default, "ssl", or "none").
+# Until the product is trusted, every message goes to the account owner's own address,
+# never to the client. The intended client address is shown inside the message.
+
+class SendError(Exception):
+    pass
+
+
+def money_text(minor):
+    return f"{Decimal(minor) / 100:,.2f}"
+
+
+def build_message(user, inv, kind):
+    due = date.fromisoformat(inv["due_date"]).strftime("%d %b %Y")
+    amount = f"{inv['currency']} {money_text(inv['amount'])}"
+    what = f" for {inv['description']}" if inv["description"] else ""
+    if kind == "before_due":
+        subject = f"Reminder: invoice of {amount} is due on {due}"
+        text = (f"Hi {inv['client_name']},\n\nA friendly reminder that my invoice of {amount}{what} "
+                f"is due on {due}.\n\nIf it is already on its way, thank you, and please ignore this note.\n")
+    else:
+        subject = f"Invoice of {amount} was due on {due}"
+        text = (f"Hi {inv['client_name']},\n\nMy invoice of {amount}{what} was due on {due} and I "
+                f"have not yet seen the payment.\n\nCould you let me know when to expect it? If you have "
+                f"already paid, thank you, and please ignore this note.\n")
+    sign = user["name"] or user["email"]
+    msg = EmailMessage()
+    msg["To"] = user["email"]  # own address only
+    msg["Subject"] = f"[PayDay test] {subject}"
+    msg.set_content(f"PayDay test copy. This would be sent to {inv['client_name']} <{inv['client_email']}>. "
+                    f"It was sent to you only.\n\n----\n\n{text}\nThanks,\n{sign}\n")
+    return msg
+
+
+def smtp_send(msg):
+    host = os.environ.get("SMTP_HOST")
+    if not host:
+        raise SendError("SMTP is not configured (set SMTP_HOST).")
+    sender = os.environ.get("SMTP_FROM") or os.environ.get("SMTP_USER")
+    if not sender:
+        raise SendError("Set SMTP_FROM or SMTP_USER.")
+    msg["From"] = sender
+    mode = os.environ.get("SMTP_SECURITY", "starttls").lower()
+    port = int(os.environ.get("SMTP_PORT", 465 if mode == "ssl" else 587))
+    try:
+        cls = smtplib.SMTP_SSL if mode == "ssl" else smtplib.SMTP
+        with cls(host, port, timeout=20) as s:
+            if mode == "starttls":
+                s.starttls()
+            if os.environ.get("SMTP_USER"):
+                s.login(os.environ["SMTP_USER"], os.environ.get("SMTP_PASSWORD", ""))
+            s.send_message(msg)
+    except (smtplib.SMTPException, OSError) as e:
+        raise SendError(f"{type(e).__name__}: {e}") from e
+
+
+def send_due_reminders(db=None):
+    """Send every pending reminder whose time has come. Returns (sent, failed)."""
+    own = db is None
+    db = db or connect()
+    sent = failed = 0
+    try:
+        due = db.execute(
+            "SELECT r.id, r.type, r.attempts, r.invoice_id FROM reminders r JOIN invoices i ON i.id=r.invoice_id "
+            "WHERE r.status='pending' AND i.status='open' AND r.scheduled_for <= ? ORDER BY r.scheduled_for", (now(),)).fetchall()
+        for r in due:
+            # Claim the row first, so two overlapping runs cannot both send it.
+            claimed = db.execute("UPDATE reminders SET attempts=attempts+1 WHERE id=? AND status='pending' AND attempts=?",
+                                 (r["id"], r["attempts"])).rowcount
+            db.commit()
+            if not claimed:
+                continue
+            inv = db.execute("SELECT * FROM invoices WHERE id=?", (r["invoice_id"],)).fetchone()
+            user = db.execute("SELECT * FROM users WHERE id=?", (inv["user_id"],)).fetchone()
+            try:
+                if not user:
+                    raise SendError("Invoice has no owner.")
+                smtp_send(build_message(user, inv, r["type"]))
+            except Exception as e:  # noqa: BLE001 - any failure must be recorded, never crash the run
+                db.execute("UPDATE reminders SET status='failed', last_error=? WHERE id=?", (str(e)[:500], r["id"]))
+                db.commit()
+                log.error("reminder failed: invoice=%s type=%s error=%s", r["invoice_id"], r["type"], e)
+                failed += 1
+                continue
+            db.execute("UPDATE reminders SET status='sent', sent_at=?, last_error=NULL WHERE id=?", (now(), r["id"]))
+            db.commit()
+            log.info("reminder sent: invoice=%s type=%s to=%s", r["invoice_id"], r["type"], user["email"])
+            sent += 1
+    finally:
+        if own:
+            db.close()
+    return sent, failed
+
+
 # --- routes -----------------------------------------------------------------
 
 def get_invoice(invoice_id):
@@ -291,6 +445,7 @@ def invoice_form(invoice_id=None):
                     "INSERT INTO invoices (client_name, client_email, amount, currency, description, "
                     "due_date, user_id, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?)",
                     (*vals, g.user["id"], ts, ts)).lastrowid
+            sync_reminders(db, invoice_id, v["due_date"], user_tz())
             db.commit()
             flash("Invoice saved.")
             return redirect(url_for("invoice", invoice_id=invoice_id))
@@ -306,7 +461,9 @@ def invoice_form(invoice_id=None):
 def invoice(invoice_id):
     inv = dict(get_invoice(invoice_id))
     inv["days"] = (date.fromisoformat(inv["due_date"]) - date.fromisoformat(today())).days
-    return render_template("invoice.html", inv=inv, today=today())
+    reminders = get_db().execute(
+        "SELECT * FROM reminders WHERE invoice_id=? ORDER BY scheduled_for", (invoice_id,)).fetchall()
+    return render_template("invoice.html", inv=inv, today=today(), reminders=reminders)
 
 
 @app.post("/invoices/<int:invoice_id>/paid")
@@ -322,6 +479,7 @@ def mark_paid(invoice_id):
         return redirect(url_for("invoice", invoice_id=invoice_id))
     db = get_db()
     db.execute("UPDATE invoices SET status='paid', paid_on=?, updated_at=? WHERE id=? AND user_id=?", (paid_on, now(), invoice_id, g.user["id"]))
+    cancel_reminders(db, invoice_id)
     db.commit()
     flash("Marked as paid.")
     return redirect(url_for("invoice", invoice_id=invoice_id))
@@ -332,6 +490,7 @@ def archive(invoice_id):
     get_invoice(invoice_id)
     db = get_db()
     db.execute("UPDATE invoices SET status='archived', updated_at=? WHERE id=? AND user_id=?", (now(), invoice_id, g.user["id"]))
+    cancel_reminders(db, invoice_id)
     db.commit()
     flash("Invoice archived.")
     return redirect(url_for("invoices", tab="archived"))
@@ -354,4 +513,9 @@ def delete(invoice_id):
 init_db()
 
 if __name__ == "__main__":
+    if sys.argv[1:] == ["send-reminders"]:
+        # Run this every few minutes (cron, launchd, or a loop).
+        s, f = send_due_reminders()
+        print(f"sent {s}, failed {f}")
+        sys.exit(1 if f else 0)
     app.run(debug=True, port=int(os.environ.get("PORT", 5055)))

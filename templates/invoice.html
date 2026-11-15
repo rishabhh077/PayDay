@@ -29,6 +29,26 @@
 </dl>
 </div>
 
+<div class="sheet">
+<h2>Reminders</h2>
+{% if reminders %}
+<dl class="facts">
+  {% for r in reminders %}
+  <dt>{{ "Before due date" if r.type == "before_due" else "After due date" if r.type == "after_due" else "Manual" }}</dt>
+  <dd>{{ r.scheduled_for|local }}
+    {%- if r.status == "pending" %} (scheduled, not sent yet)
+    {%- elif r.status == "cancelled" %} (cancelled)
+    {%- elif r.status == "sent" %} (sent)
+    {%- else %} (failed){% endif %}
+    {%- if r.status == "sent" and r.sent_at %}, {{ r.sent_at|local }}{% endif %}
+    {%- if r.last_error %}<br><small>Error: {{ r.last_error }}</small>{% endif %}</dd>
+  {% endfor %}
+</dl>
+{% else %}
+<p>No reminders scheduled for this invoice.</p>
+{% endif %}
+</div>
+
 <div class="actions">
   {% if inv.status == "open" %}
   <form class="pay" method="post" action="{{ url_for('mark_paid', invoice_id=inv.id) }}">

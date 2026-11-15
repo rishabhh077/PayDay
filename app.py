@@ -1,13 +1,15 @@
-"""PayDay, Phase 1: invoices. No accounts and no email yet."""
+"""PayDay, Phase 2: accounts. Each user sees only their own invoices. No email yet."""
 import os
 import re
 import secrets
 import sqlite3
 from datetime import date, datetime, timezone
 from decimal import Decimal, InvalidOperation
+from zoneinfo import ZoneInfo
 
 from flask import Flask, abort, flash, g, redirect, render_template, request, session, url_for
 from markupsafe import Markup
+from werkzeug.security import check_password_hash, generate_password_hash
 
 app = Flask(__name__)
 app.config["DB"] = os.environ.get("PAYDAY_DB", os.path.join(app.root_path, "payday.db"))
@@ -59,9 +61,17 @@ def now():
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
+def user_tz():
+    name = g.user["time_zone"] if g.get("user") else "Asia/Kolkata"
+    try:
+        return ZoneInfo(name)
+    except Exception:
+        return ZoneInfo("UTC")
+
+
 def today():
-    # shortcut: server's local date; becomes the user's time zone in Phase 2.
-    return date.today().isoformat()
+    """Today's date in the signed-in user's time zone."""
+    return datetime.now(user_tz()).date().isoformat()
 
 
 # --- CSRF -------------------------------------------------------------------
@@ -80,6 +90,100 @@ def csrf_field():
 
 
 app.jinja_env.globals["csrf_field"] = csrf_field
+
+
+# --- accounts ---------------------------------------------------------------
+
+PUBLIC = {"login", "signup", "static"}
+MIN_PASSWORD = 8
+
+
+@app.before_request
+def load_user():
+    g.user = None
+    uid = session.get("uid")
+    if uid:
+        g.user = get_db().execute("SELECT * FROM users WHERE id = ?", (uid,)).fetchone()
+        if not g.user:
+            session.pop("uid", None)  # account no longer exists
+    if g.user is None and request.endpoint not in PUBLIC:
+        # Secure by default: every route needs a signed-in user unless listed in PUBLIC.
+        if request.endpoint is None:
+            return None  # 404s fall through
+        target = request.full_path.rstrip("?") if request.method == "GET" else None
+        return redirect(url_for("login", next=target))
+
+
+def safe_next(target):
+    """Only follow redirects to a path on this site."""
+    if target and target.startswith("/") and not target.startswith("//") and "\\" not in target:
+        return target
+    return url_for("invoices")
+
+
+def sign_in(user_id):
+    session.clear()  # new session on every sign-in, with a fresh CSRF token
+    session["uid"] = user_id
+
+
+# Checked against when the email is unknown, so the response time does not reveal which emails exist.
+DUMMY_HASH = generate_password_hash("not-a-real-password")
+
+
+@app.route("/signup", methods=["GET", "POST"])
+def signup():
+    if g.user:
+        return redirect(url_for("invoices"))
+    errors, v = {}, {}
+    if request.method == "POST":
+        v = {"name": request.form.get("name", "").strip(),
+             "email": request.form.get("email", "").strip().lower()}
+        password = request.form.get("password", "")
+        if not EMAIL.match(v["email"]):
+            errors["email"] = "Enter an email address, like name@example.com."
+        if len(password) < MIN_PASSWORD:
+            errors["password"] = f"Use at least {MIN_PASSWORD} characters."
+        if not errors:
+            db = get_db()
+            try:
+                user_id = db.execute(
+                    "INSERT INTO users (email, password_hash, name, created_at) VALUES (?,?,?,?)",
+                    (v["email"], generate_password_hash(password), v["name"], now())).lastrowid
+            except sqlite3.IntegrityError:
+                errors["email"] = "That email already has an account. Sign in instead."
+            else:
+                # Invoices entered in Phase 1 have no owner; the first account adopts them.
+                if db.execute("SELECT COUNT(*) FROM users").fetchone()[0] == 1:
+                    db.execute("UPDATE invoices SET user_id = ? WHERE user_id IS NULL", (user_id,))
+                db.commit()
+                sign_in(user_id)
+                flash("Welcome to PayDay.")
+                return redirect(url_for("invoices"))
+    return render_template("signup.html", v=v, errors=errors), 400 if errors else 200
+
+
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    if g.user:
+        return redirect(url_for("invoices"))
+    error, email = None, ""
+    if request.method == "POST":
+        email = request.form.get("email", "").strip().lower()
+        user = get_db().execute("SELECT * FROM users WHERE email = ?", (email,)).fetchone()
+        ok = check_password_hash(user["password_hash"] if user else DUMMY_HASH, request.form.get("password", ""))
+        if user and ok:
+            sign_in(user["id"])
+            return redirect(safe_next(request.form.get("next") or request.args.get("next")))
+        error = "That email and password do not match."
+    return render_template("login.html", email=email, error=error,
+                           next=request.form.get("next") or request.args.get("next") or ""), 400 if error else 200
+
+
+@app.post("/logout")
+def logout():
+    session.clear()
+    flash("Signed out.")
+    return redirect(url_for("login"))
 
 
 # --- formatting -------------------------------------------------------------
@@ -128,7 +232,8 @@ def parse_invoice(form):
 # --- routes -----------------------------------------------------------------
 
 def get_invoice(invoice_id):
-    row = get_db().execute("SELECT * FROM invoices WHERE id = ?", (invoice_id,)).fetchone()
+    # Scoped to the signed-in user; someone else's invoice is a 404, same as a missing one.
+    row = get_db().execute("SELECT * FROM invoices WHERE id = ? AND user_id = ?", (invoice_id, g.user["id"])).fetchone()
     if not row:
         abort(404)
     return row
@@ -154,7 +259,7 @@ def invoices():
     db, t = get_db(), today()
     status = "open" if tab == "unpaid" else tab
     order = "due_date, id" if tab == "unpaid" else "COALESCE(paid_on, updated_at) DESC"
-    rows = [dict(r) for r in db.execute(f"SELECT * FROM invoices WHERE status = ? ORDER BY {order}", (status,))]
+    rows = [dict(r) for r in db.execute(f"SELECT * FROM invoices WHERE user_id = ? AND status = ? ORDER BY {order}", (g.user["id"], status))]
     for r in rows:
         r["days"] = (date.fromisoformat(r["due_date"]) - date.fromisoformat(t)).days
     overdue = [r for r in rows if r["days"] < 0] if tab == "unpaid" else []
@@ -180,11 +285,12 @@ def invoice_form(invoice_id=None):
             if inv:
                 db.execute(
                     "UPDATE invoices SET client_name=?, client_email=?, amount=?, currency=?, "
-                    "description=?, due_date=?, updated_at=? WHERE id=?", (*vals, ts, invoice_id))
+                    "description=?, due_date=?, updated_at=? WHERE id=? AND user_id=?", (*vals, ts, invoice_id, g.user["id"]))
             else:
                 invoice_id = db.execute(
                     "INSERT INTO invoices (client_name, client_email, amount, currency, description, "
-                    "due_date, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?)", (*vals, ts, ts)).lastrowid
+                    "due_date, user_id, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?)",
+                    (*vals, g.user["id"], ts, ts)).lastrowid
             db.commit()
             flash("Invoice saved.")
             return redirect(url_for("invoice", invoice_id=invoice_id))
@@ -199,7 +305,7 @@ def invoice_form(invoice_id=None):
 @app.route("/invoices/<int:invoice_id>")
 def invoice(invoice_id):
     inv = dict(get_invoice(invoice_id))
-    inv["days"] = (date.fromisoformat(inv["due_date"]) - date.today()).days
+    inv["days"] = (date.fromisoformat(inv["due_date"]) - date.fromisoformat(today())).days
     return render_template("invoice.html", inv=inv, today=today())
 
 
@@ -215,7 +321,7 @@ def mark_paid(invoice_id):
         flash("Choose the date the invoice was paid.")
         return redirect(url_for("invoice", invoice_id=invoice_id))
     db = get_db()
-    db.execute("UPDATE invoices SET status='paid', paid_on=?, updated_at=? WHERE id=?", (paid_on, now(), invoice_id))
+    db.execute("UPDATE invoices SET status='paid', paid_on=?, updated_at=? WHERE id=? AND user_id=?", (paid_on, now(), invoice_id, g.user["id"]))
     db.commit()
     flash("Marked as paid.")
     return redirect(url_for("invoice", invoice_id=invoice_id))
@@ -225,7 +331,7 @@ def mark_paid(invoice_id):
 def archive(invoice_id):
     get_invoice(invoice_id)
     db = get_db()
-    db.execute("UPDATE invoices SET status='archived', updated_at=? WHERE id=?", (now(), invoice_id))
+    db.execute("UPDATE invoices SET status='archived', updated_at=? WHERE id=? AND user_id=?", (now(), invoice_id, g.user["id"]))
     db.commit()
     flash("Invoice archived.")
     return redirect(url_for("invoices", tab="archived"))
@@ -239,7 +345,7 @@ def delete(invoice_id):
     sent = db.execute("SELECT COUNT(*) FROM reminders WHERE invoice_id=? AND status='sent'", (invoice_id,)).fetchone()[0]
     if sent:
         return archive(invoice_id)
-    db.execute("DELETE FROM invoices WHERE id=?", (invoice_id,))
+    db.execute("DELETE FROM invoices WHERE id=? AND user_id=?", (invoice_id, g.user["id"]))
     db.commit()
     flash("Invoice deleted.")
     return redirect(url_for("invoices"))

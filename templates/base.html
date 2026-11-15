@@ -13,11 +13,22 @@
 <body>
 <a class="skip" href="#main">Skip to content</a>
 <header class="top">
-  <a class="brand" href="{{ url_for('invoices') }}">PayDay</a>
+  <a class="brand" href="{{ url_for('invoices') if g.user else url_for('login') }}">PayDay</a>
+  {% if g.user %}
   <nav aria-label="Main">
     <a href="{{ url_for('invoices') }}" {% if request.endpoint != 'invoice_form' or inv %}aria-current="page"{% endif %}>Invoices</a>
   </nav>
   <a class="cap" href="{{ url_for('invoice_form') }}">New invoice {{ chip("plus") }}</a>
+  <form class="signout" method="post" action="{{ url_for('logout') }}">
+    {{ csrf_field() }}
+    <button class="cap bare line" title="Signed in as {{ g.user.email }}">Sign out</button>
+  </form>
+  {% else %}
+  <nav aria-label="Account">
+    <a href="{{ url_for('login') }}" {% if request.endpoint == 'login' %}aria-current="page"{% endif %}>Sign in</a>
+    <a href="{{ url_for('signup') }}" {% if request.endpoint == 'signup' %}aria-current="page"{% endif %}>Create account</a>
+  </nav>
+  {% endif %}
 </header>
 <main id="main">
   {% for message in get_flashed_messages() %}

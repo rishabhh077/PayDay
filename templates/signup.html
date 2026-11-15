@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% from "_ui.html" import chip, land %}
+{% block title %}Create account{% endblock %}
+
+{% block main %}
+{% call land("form") %}
+<h1>Create your account</h1>
+<p class="lede">Your invoices are private to you. Nobody else can see them.</p>
+{% endcall %}
+
+<form class="sheet form" method="post" novalidate>
+  {{ csrf_field() }}
+  <div class="field">
+    <label for="name">Your name <span class="hint">Optional</span></label>
+    <input type="text" id="name" name="name" value="{{ v.get('name', '') }}" autocomplete="name">
+  </div>
+  <div class="field">
+    <label for="email">Email</label>
+    <input type="email" id="email" name="email" value="{{ v.get('email', '') }}" autocomplete="email" required
+      {% if errors.email %}aria-invalid="true" aria-describedby="email-error"{% endif %}>
+    {% if errors.email %}<p class="error" id="email-error">{{ errors.email }}</p>{% endif %}
+  </div>
+  <div class="field">
+    <label for="password">Password <span class="hint">At least 8 characters</span></label>
+    <input type="password" id="password" name="password" autocomplete="new-password" minlength="8" required
+      {% if errors.password %}aria-invalid="true" aria-describedby="password-error"{% endif %}>
+    {% if errors.password %}<p class="error" id="password-error">{{ errors.password }}</p>{% endif %}
+  </div>
+  <div class="actions">
+    <button class="cap">Create account {{ chip("check") }}</button>
+    <a class="cap bare line" href="{{ url_for('login') }}">I already have an account</a>
+  </div>
+</form>
+{% endblock %}

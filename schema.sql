@@ -46,3 +46,14 @@ CREATE TABLE IF NOT EXISTS templates (
   body TEXT NOT NULL,
   UNIQUE (user_id, type)
 );
+
+-- One row per send attempt (R5): when, to whom, and whether it worked.
+CREATE TABLE IF NOT EXISTS reminder_attempts (
+  id INTEGER PRIMARY KEY,
+  reminder_id INTEGER NOT NULL REFERENCES reminders(id) ON DELETE CASCADE,
+  attempted_at TEXT NOT NULL,
+  to_address TEXT,
+  result TEXT NOT NULL CHECK (result IN ('sent', 'failed')),
+  error TEXT
+);
+CREATE INDEX IF NOT EXISTS reminder_attempts_by_reminder ON reminder_attempts (reminder_id);

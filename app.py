@@ -8,6 +8,7 @@ import sqlite3
 import sys
 import threading
 from email.message import EmailMessage
+from email.utils import formatdate, make_msgid
 from time import sleep
 from datetime import date, datetime, time, timedelta, timezone
 from decimal import Decimal, InvalidOperation
@@ -337,6 +338,11 @@ def template_kind(reminder_type, inv, user):
     return "before_due" if inv["due_date"] >= today_local else "after_due"
 
 
+def live_mode():
+    """Off by default: every email then goes to the account owner only. PAYDAY_SEND_TO_CLIENTS=1 sends to clients."""
+    return os.environ.get("PAYDAY_SEND_TO_CLIENTS") == "1"
+
+
 def build_message(user, inv, kind, body=None):
     due = date.fromisoformat(inv["due_date"]).strftime("%d %b %Y")
     amount = money_text(inv["amount"])
@@ -345,10 +351,18 @@ def build_message(user, inv, kind, body=None):
     text = fill(body or DEFAULT_TEMPLATES[kind], inv["client_name"], amount, inv["currency"], due)
     sign = user["name"] or user["email"]
     msg = EmailMessage()
-    msg["To"] = user["email"]  # own address only
-    msg["Subject"] = f"[PayDay test] {subject}"
-    msg.set_content(f"PayDay test copy. This would be sent to {inv['client_name']} <{inv['client_email']}>. "
-                    f"It was sent to you only.\n\n----\n\n{text}\n\nThanks,\n{sign}\n")
+    msg["Date"] = formatdate(localtime=False)
+    msg["Message-ID"] = make_msgid(domain="payday.local")
+    if live_mode():
+        msg["To"] = inv["client_email"]
+        msg["Reply-To"] = user["email"]  # the client's reply goes to the freelancer, not to the sending account
+        msg["Subject"] = subject
+        msg.set_content(f"{text}\n\nThanks,\n{sign}\n")
+    else:
+        msg["To"] = user["email"]  # own address only
+        msg["Subject"] = f"[PayDay test] {subject}"
+        msg.set_content(f"PayDay test copy. This would be sent to {inv['client_name']} <{inv['client_email']}>. "
+                        f"It was sent to you only.\n\n----\n\n{text}\n\nThanks,\n{sign}\n")
     return msg
 
 
@@ -622,7 +636,8 @@ def delete(invoice_id):
 @app.post("/invoices/<int:invoice_id>/remind")
 def remind(invoice_id):
     """R7: send a reminder now. Logged and retried like any other."""
-    if get_invoice(invoice_id)["status"] != "open":
+    inv = get_invoice(invoice_id)
+    if inv["status"] != "open":
         abort(400)
     db, t = get_db(), now()
     rid = db.execute("INSERT INTO reminders (invoice_id, type, scheduled_for, created_at) VALUES (?, 'manual', ?, ?)",
@@ -631,7 +646,8 @@ def remind(invoice_id):
     send_due_reminders(db, only_id=rid)
     row = db.execute("SELECT status, last_error FROM reminders WHERE id=?", (rid,)).fetchone()
     if row["status"] == "sent":
-        flash("Reminder sent. While PayDay is in test mode it goes to your own address, not the client's.")
+        flash(f"Reminder sent to {inv['client_email']}." if live_mode()
+              else "Reminder sent. While PayDay is in test mode it goes to your own address, not the client's.")
     else:
         flash(f"The reminder did not send: {row['last_error']} PayDay will try again in an hour.")
     return redirect(url_for("invoice", invoice_id=invoice_id))
@@ -678,7 +694,7 @@ def settings():
     shown = {k: v[k] or DEFAULT_TEMPLATES[k] for k in TEMPLATE_KINDS}
     previews = {k: fill(shown[k], *SAMPLE) for k in TEMPLATE_KINDS}
     return render_template("settings.html", v=v, errors=errors, previews=previews, zones=sorted(available_timezones()),
-                           variables=VARIABLES), 400 if errors else 200
+                           variables=VARIABLES, live=live_mode()), 400 if errors else 200
 
 
 init_db()

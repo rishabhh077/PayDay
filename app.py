@@ -388,6 +388,12 @@ def smtp_send(msg):
         raise SendError(f"{type(e).__name__}: {e}") from e
 
 
+def log_attempt(db, reminder_id, at, to_addr, error):
+    """R5: keep one row per send attempt. Committed together with the status change that follows."""
+    db.execute("INSERT INTO reminder_attempts (reminder_id, attempted_at, to_address, result, error) VALUES (?,?,?,?,?)",
+               (reminder_id, at, to_addr, "failed" if error else "sent", error[:500] if error else None))
+
+
 MAX_ATTEMPTS = 3  # R6: the first try plus two retries
 RETRY_DELAY = timedelta(hours=1)
 
@@ -422,12 +428,16 @@ def send_due_reminders(db=None, at=None, only_id=None):
                 db.commit()
                 log.warning("reminder skipped, too late: invoice=%s type=%s", r["invoice_id"], r["type"])
                 continue
+            to_addr = None
             try:
                 if not user:
                     raise SendError("Invoice has no owner.")
                 kind = template_kind(r["type"], inv, user)
-                smtp_send(build_message(user, inv, kind, template_body(db, user["id"], kind)))
+                msg = build_message(user, inv, kind, template_body(db, user["id"], kind))
+                to_addr = msg["To"]
+                smtp_send(msg)
             except Exception as e:  # noqa: BLE001 - any failure must be recorded, never crash the run
+                log_attempt(db, r["id"], t, to_addr, str(e))
                 tries = r["attempts"] + 1  # the claim above already counted this attempt
                 if tries >= MAX_ATTEMPTS:
                     db.execute("UPDATE reminders SET status='failed', last_error=? WHERE id=?", (str(e)[:500], r["id"]))
@@ -440,8 +450,9 @@ def send_due_reminders(db=None, at=None, only_id=None):
                 failed += 1
                 continue
             db.execute("UPDATE reminders SET status='sent', sent_at=?, last_error=NULL WHERE id=?", (t, r["id"]))
+            log_attempt(db, r["id"], t, to_addr, None)
             db.commit()
-            log.info("reminder sent: invoice=%s type=%s to=%s", r["invoice_id"], r["type"], user["email"])
+            log.info("reminder sent: invoice=%s type=%s to=%s", r["invoice_id"], r["type"], to_addr)
             sent += 1
     finally:
         if own:
@@ -571,7 +582,10 @@ def invoice(invoice_id):
     inv["days"] = (date.fromisoformat(inv["due_date"]) - date.fromisoformat(today())).days
     reminders = get_db().execute(
         "SELECT * FROM reminders WHERE invoice_id=? ORDER BY scheduled_for", (invoice_id,)).fetchall()
-    return render_template("invoice.html", inv=inv, today=today(), reminders=reminders)
+    history = get_db().execute(
+        "SELECT a.*, r.type FROM reminder_attempts a JOIN reminders r ON r.id = a.reminder_id "
+        "WHERE r.invoice_id=? ORDER BY a.id DESC", (invoice_id,)).fetchall()
+    return render_template("invoice.html", inv=inv, today=today(), reminders=reminders, history=history)
 
 
 @app.post("/invoices/<int:invoice_id>/paid")

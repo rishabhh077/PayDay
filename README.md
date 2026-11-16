@@ -21,6 +21,7 @@ Notes on sending:
 - Due reminders are sent by a background job inside the app when `PAYDAY_SCHEDULER=1` is set (the Docker image sets it). It runs every 10 minutes, or every `PAYDAY_SEND_EVERY_MINUTES`. Without it, run `.venv/bin/python app.py send-reminders` from cron or launchd.
 - If the job was down and a "before due" reminder is found after the due date, it is cancelled with a note instead of sent, since "due in 3 days" would be wrong. The "after due" reminder still goes.
 - A reminder is sent only if it is pending, its time has come and the invoice is still open. Each one is claimed before sending, so overlapping runs cannot send it twice.
+- Every send attempt, successful or not, is logged with its time, the address it went to, and any error. The invoice page lists them under "Send history", newest first. History starts from the moment this was added; earlier sends have no entries.
 - A failed send is tried again an hour later, up to 3 attempts in all. After the third failure the reminder is marked `failed`, with the error shown on the invoice page and on the dashboard. Marking the invoice paid or archiving it stops any retries.
 - The run prints how many attempts failed. It exits with an error code when any did, so cron can alert you.
 - The dashboard (the page you land on after signing in) lists reminders that failed for good, the overdue invoices, and your unpaid and overdue totals.

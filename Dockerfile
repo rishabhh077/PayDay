@@ -6,7 +6,7 @@ COPY . .
 # The database lives in /data so it survives a new container: mount a volume there.
 RUN useradd --create-home payday && mkdir /data && chown payday /data
 USER payday
-ENV PAYDAY_DB=/data/payday.db
+ENV PAYDAY_DB=/data/payday.db PAYDAY_SCHEDULER=1
 VOLUME /data
 EXPOSE 8000
 CMD ["gunicorn", "--bind", "0.0.0.0:8000", "--workers", "2", "app:app"]

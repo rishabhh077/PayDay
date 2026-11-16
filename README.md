@@ -17,7 +17,8 @@ Notes on sending:
 
 - Every message goes to the account owner's own address, never the client's. It is marked "[PayDay test]" and names the client it would have gone to.
 - Set these environment variables: `SMTP_HOST`, `SMTP_PORT` (default 587), `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM` (defaults to `SMTP_USER`), `SMTP_SECURITY` (`starttls` by default, or `ssl`, or `none`). For Gmail use `smtp.gmail.com` and an app password.
-- Send due reminders by running `.venv/bin/python app.py send-reminders`. Run it every few minutes (cron or launchd). It does not run by itself.
+- Due reminders are sent by a background job inside the app when `PAYDAY_SCHEDULER=1` is set (the Docker image sets it). It runs every 10 minutes, or every `PAYDAY_SEND_EVERY_MINUTES`. Without it, run `.venv/bin/python app.py send-reminders` from cron or launchd.
+- If the job was down and a "before due" reminder is found after the due date, it is cancelled with a note instead of sent, since "due in 3 days" would be wrong. The "after due" reminder still goes.
 - A reminder is sent only if it is pending, its time has come and the invoice is still open. Each one is claimed before sending, so overlapping runs cannot send it twice.
 - A failed send is tried again an hour later, up to 3 attempts in all. After the third failure the reminder is marked `failed`, with the error shown on the invoice page and on the dashboard. Marking the invoice paid or archiving it stops any retries.
 - The run prints how many attempts failed. It exits with an error code when any did, so cron can alert you.
@@ -26,6 +27,7 @@ Notes on sending:
 
 Notes on accounts:
 
+- A paid or archived invoice can be reopened from its page. Cancelled reminders come back; reminders already sent stay sent.
 - Every page needs sign-in except sign up and sign in.
 - Someone else's invoice returns "not found", the same as one that does not exist.
 - Passwords are stored hashed, and must be at least 8 characters.
@@ -69,10 +71,6 @@ docker run -d --name payday -p 8000:8000 -v payday-data:/data \
 
 - Keep `SECRET_KEY` the same between runs, or everyone is signed out on each restart. `PAYDAY_HTTPS=1` marks the session cookie secure; only set it when the site is served over https (put a reverse proxy such as Caddy or nginx in front for that).
 - The database lives in the `payday-data` volume.
-- Send reminders on a schedule, for example with this cron line (every 10 minutes):
+- Reminders are sent by the app itself every 10 minutes, so no cron is needed. Run one copy of the container.
 
-```
-*/10 * * * * docker exec payday python app.py send-reminders
-```
-
-Without Docker: `pip install -r requirements.txt`, then `gunicorn --bind 0.0.0.0:8000 --workers 2 app:app`.
+Without Docker: `pip install -r requirements.txt`, then `PAYDAY_SCHEDULER=1 gunicorn --bind 0.0.0.0:8000 --workers 2 app:app`.

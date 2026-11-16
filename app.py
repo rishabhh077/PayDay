@@ -1,4 +1,4 @@
-"""PayDay, Phase 6: polish. Settings, editable reminder text, manual send, and deployment."""
+"""PayDay: invoices, accounts, reminders, sending, safety, settings. Polish 1 adds an in-app scheduler and a late-reminder guard."""
 import logging
 import os
 import re
@@ -6,7 +6,9 @@ import secrets
 import smtplib
 import sqlite3
 import sys
+import threading
 from email.message import EmailMessage
+from time import sleep
 from datetime import date, datetime, time, timedelta, timezone
 from decimal import Decimal, InvalidOperation
 from zoneinfo import ZoneInfo, available_timezones
@@ -399,6 +401,13 @@ def send_due_reminders(db=None, at=None, only_id=None):
                 continue
             inv = db.execute("SELECT * FROM invoices WHERE id=?", (r["invoice_id"],)).fetchone()
             user = db.execute("SELECT * FROM users WHERE id=?", (inv["user_id"],)).fetchone()
+            if user and r["type"] == "before_due" and inv["due_date"] < datetime.fromisoformat(t).astimezone(tz_of(user)).date().isoformat():
+                # Late (the job was down): "due in 3 days" would be wrong now. The "after" reminder still goes.
+                db.execute("UPDATE reminders SET status='cancelled', last_error=? WHERE id=?",
+                           ("Not sent: the due date had already passed.", r["id"]))
+                db.commit()
+                log.warning("reminder skipped, too late: invoice=%s type=%s", r["invoice_id"], r["type"])
+                continue
             try:
                 if not user:
                     raise SendError("Invoice has no owner.")
@@ -424,6 +433,29 @@ def send_due_reminders(db=None, at=None, only_id=None):
         if own:
             db.close()
     return sent, failed
+
+
+# --- scheduler (Polish 1) ---------------------------------------------------
+# With PAYDAY_SCHEDULER=1 every web process sends due reminders every PAYDAY_SEND_EVERY_MINUTES (default 10).
+# Several processes can run it at once: each reminder is claimed before sending, so none goes out twice.
+# Without it, run `python app.py send-reminders` from cron instead.
+
+def scheduler_loop(interval, rounds=None):
+    n = 0
+    while rounds is None or n < rounds:
+        n += 1
+        try:
+            send_due_reminders()
+        except Exception:  # noqa: BLE001 - one bad run (database busy, say) must not stop the loop
+            log.exception("reminder run failed; trying again next round")
+        if rounds is None or n < rounds:
+            sleep(interval)
+
+
+def start_scheduler():
+    minutes = max(1, int(os.environ.get("PAYDAY_SEND_EVERY_MINUTES", 10)))
+    threading.Thread(target=scheduler_loop, args=(minutes * 60,), daemon=True, name="payday-scheduler").start()
+    log.info("scheduler started: sending due reminders every %s minutes", minutes)
 
 
 # --- routes -----------------------------------------------------------------
@@ -558,6 +590,21 @@ def archive(invoice_id):
     return redirect(url_for("invoices", tab="archived"))
 
 
+@app.post("/invoices/<int:invoice_id>/reopen")
+def reopen(invoice_id):
+    """Undo "paid" or "archived". Cancelled reminders come back; reminders already sent stay sent."""
+    inv = get_invoice(invoice_id)
+    if inv["status"] == "open":
+        abort(400)
+    db = get_db()
+    db.execute("UPDATE invoices SET status='open', paid_on=NULL, updated_at=? WHERE id=? AND user_id=?",
+               (now(), invoice_id, g.user["id"]))
+    sync_reminders(db, invoice_id, inv["due_date"], user_tz())
+    db.commit()
+    flash("Invoice reopened.")
+    return redirect(url_for("invoice", invoice_id=invoice_id))
+
+
 @app.post("/invoices/<int:invoice_id>/delete")
 def delete(invoice_id):
     get_invoice(invoice_id)
@@ -635,6 +682,8 @@ def settings():
 
 
 init_db()
+if os.environ.get("PAYDAY_SCHEDULER") == "1":
+    start_scheduler()
 
 if __name__ == "__main__":
     if sys.argv[1:] == ["send-reminders"]:

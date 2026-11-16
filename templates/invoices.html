@@ -1,28 +1,7 @@
 {% extends "base.html" %}
-{% from "_ui.html" import chip, when, totals, land %}
+{% from "_ui.html" import chip, when, totals, land, invoice_table %}
 {% set titles = {"unpaid": "Unpaid", "paid": "Paid", "archived": "Archived"} %}
 {% block title %}{{ titles[tab] }} invoices{% endblock %}
-
-{% macro table(rows, first) %}
-<div class="sheet">
-<table>
-  <thead><tr><th class="col-due">{{ first }}</th><th class="col-who">Client</th><th>For</th><th class="num col-amt">Amount</th></tr></thead>
-  <tbody>
-  {% for r in rows %}
-  <tr>
-    <td class="due">
-      {%- if tab == "paid" %}{{ (r.paid_on or r.due_date)|d }}
-      {%- else %}{{ r.due_date|d }}{% if tab == "unpaid" %}<span class="when">{{ when(r.days) }}</span>{% endif %}{% endif -%}
-    </td>
-    <td class="who"><a href="{{ url_for('invoice', invoice_id=r.id) }}">{{ r.client_name }}</a></td>
-    <td class="for">{{ r.description }}</td>
-    <td class="num">{{ r.currency }} {{ r.amount|money }}</td>
-  </tr>
-  {% endfor %}
-  </tbody>
-</table>
-</div>
-{% endmacro %}
 
 {% block main %}
 {% call land("list") %}
@@ -45,12 +24,12 @@
 
 {% if overdue %}
 <h2>Overdue <span class="tag coral">{{ overdue|length }}</span></h2>
-{{ table(overdue, "Due") }}
+{{ invoice_table(overdue, "Due", tab) }}
 {% endif %}
 
 {% if upcoming %}
 {% if tab == "unpaid" %}<h2>Due <span class="tag">{{ upcoming|length }}</span></h2>{% endif %}
-{{ table(upcoming, "Paid on" if tab == "paid" else "Due") }}
+{{ invoice_table(upcoming, "Paid on" if tab == "paid" else "Due", tab) }}
 {% endif %}
 
 {% if not count %}

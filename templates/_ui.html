@@ -28,3 +28,24 @@
   {{ caller() }}
 </div>
 {% endmacro %}
+
+{% macro invoice_table(rows, first, tab) %}
+<div class="sheet">
+<table>
+  <thead><tr><th class="col-due">{{ first }}</th><th class="col-who">Client</th><th>For</th><th class="num col-amt">Amount</th></tr></thead>
+  <tbody>
+  {% for r in rows %}
+  <tr>
+    <td class="due">
+      {%- if tab == "paid" %}{{ (r.paid_on or r.due_date)|d }}
+      {%- else %}{{ r.due_date|d }}{% if tab == "unpaid" %}<span class="when">{{ when(r.days) }}</span>{% endif %}{% endif -%}
+    </td>
+    <td class="who"><a href="{{ url_for('invoice', invoice_id=r.id) }}">{{ r.client_name }}</a></td>
+    <td class="for">{{ r.description }}</td>
+    <td class="num">{{ r.currency }} {{ r.amount|money }}</td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endmacro %}

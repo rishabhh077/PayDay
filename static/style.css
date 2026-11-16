@@ -183,6 +183,10 @@ input, textarea {
   font: inherit;
   font-variant-numeric: tabular-nums;
 }
+textarea { min-height: 11rem; resize: vertical; line-height: 1.5; }
+.preview { margin: 10px 0 0; padding: 14px 18px; border-radius: 16px; background: var(--water); font-size: 0.9375rem; white-space: pre-wrap; }
+.preview-label { margin: 14px 0 0; color: var(--ink-2); font-size: 0.875rem; }
+code { font: inherit; background: var(--water); padding: 1px 6px; border-radius: 6px; }
 input::placeholder { color: #6B6E64; }
 input:focus-visible, textarea:focus-visible { outline-offset: 2px; border-radius: 16px; }
 input[aria-invalid="true"] { border-color: #B3261E; box-shadow: inset 0 0 0 1px #B3261E; }
@@ -220,3 +224,9 @@ input[aria-invalid="true"] { border-color: #B3261E; box-shadow: inset 0 0 0 1px 
 @media (prefers-reduced-motion: reduce) {
   .cap .chip, tbody tr { transition: none; }
 }
+
+/* Reminders sheet on the invoice page: heading and empty text sit inside the card. */
+.sheet + .sheet { margin-top: 24px; }
+.sheet:not(.empty):not(.form) > h2 { margin: 0; padding: 24px clamp(20px, 4vw, 32px) 0; }
+.sheet:not(.empty):not(.form) > p { margin: 0; padding: 12px clamp(20px, 4vw, 32px) 24px; }
+.sheet:not(.empty):not(.form) > h2 + .facts { padding-top: 4px; }

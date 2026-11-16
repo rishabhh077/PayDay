@@ -1,4 +1,4 @@
-"""Phase 1 to 5 checks. Run: python tests.py"""
+"""Phase 1 to 6 checks. Run: python tests.py"""
 import os
 import tempfile
 from datetime import date, timedelta
@@ -112,10 +112,10 @@ def test_signup_and_login():
 
 def test_login_required():
     c = anon()
-    for url in ("/", "/dashboard", "/invoices", "/invoices/new", "/invoices/1", "/invoices/1/edit"):
+    for url in ("/", "/dashboard", "/settings", "/invoices", "/invoices/new", "/invoices/1", "/invoices/1/edit"):
         r = c.get(url)
         assert r.status_code == 302 and "/login" in r.headers["Location"], url
-    for url in ("/invoices/new", "/invoices/1/paid", "/invoices/1/archive", "/invoices/1/delete"):
+    for url in ("/invoices/new", "/settings", "/invoices/1/paid", "/invoices/1/archive", "/invoices/1/delete", "/invoices/1/remind"):
         assert "/login" in post(c, url, **GOOD).headers["Location"], url
     assert c.get("/login").status_code == 200 and c.get("/signup").status_code == 200
 
@@ -150,7 +150,7 @@ def test_users_see_only_their_own_invoices():
     # Every way to reach, change, or remove someone else's invoice is a 404 and changes nothing.
     assert ben.get(f"/invoices/{mine}").status_code == 404
     assert ben.get(f"/invoices/{mine}/edit").status_code == 404
-    for action in ("edit", "paid", "archive", "delete"):
+    for action in ("edit", "paid", "archive", "delete", "remind"):
         assert post(ben, f"/invoices/{mine}/{action}", **{**GOOD, "client_name": "Hacked"}).status_code == 404, action
     row = rows("SELECT * FROM invoices WHERE id=?", mine)[0]
     assert row["client_name"] == "Ann Secret Client" and row["status"] == "open"
@@ -441,6 +441,115 @@ def test_real_smtp_conversation():
         for k in ("SMTP_HOST", "SMTP_PORT", "SMTP_SECURITY", "SMTP_FROM"):
             os.environ.pop(k, None)
     assert got and "To: me@example.com" in got[0] and "From: payday@example.com" in got[0]
+
+
+# --- Phase 6: settings, editable text, manual send ---
+
+SETTINGS = dict(name="Prithvi", time_zone="Asia/Kolkata", before_due="", after_due="")
+
+
+def _sent_text(c, inv, kind="before_due"):
+    """Make a reminder due, send it through a fake outbox, and return the message that went out."""
+    _make_due(inv, kind)
+    box = _Outbox()
+    _run(box, T0)
+    assert len(box.msgs) == 1
+    return box.msgs[0]
+
+
+def test_settings_validation():
+    c = client("set1@example.com")
+    assert c.get("/settings").status_code == 200
+    for field, bad in [("time_zone", "Mars/Olympus"), ("name", "x" * 101), ("before_due", "Hi {nope}"), ("after_due", "x" * 2001)]:
+        r = post(c, "/settings", **{**SETTINGS, field: bad})
+        assert r.status_code == 400 and 'aria-invalid="true"' in r.get_data(as_text=True), field
+    assert rows("SELECT time_zone FROM users WHERE email='set1@example.com'")[0][0] == "Asia/Kolkata"  # nothing saved
+
+
+def test_custom_text_name_and_default_reset():
+    c = client("set2@example.com")
+    assert post(c, "/settings", **{**SETTINGS, "before_due": "Dear {client_name}: {currency} {amount} is due {due_date}."}).status_code == 302
+    inv = _post_invoice(c, "2099-06-10")
+    msg = _sent_text(c, inv)
+    body = msg.get_content()
+    assert "Dear Rem: INR 48,000.50 is due 10 Jun 2099." in body and body.rstrip().endswith("Thanks,\nPrithvi")
+    assert "friendly reminder" not in body  # custom text replaced the default
+    # Clearing the box goes back to the default, and the stored row is removed.
+    post(c, "/settings", **SETTINGS)
+    assert rows("SELECT * FROM templates WHERE user_id=(SELECT id FROM users WHERE email='set2@example.com')") == []
+    assert "Dear {client_name}" not in c.get("/settings").get_data(as_text=True)
+    inv2 = _post_invoice(c, "2099-06-11")
+    assert "friendly reminder" in _sent_text(c, inv2).get_content()
+
+
+def test_client_name_cannot_inject_variables():
+    assert payday.fill("Hi {client_name}, {amount}", "{amount}", "1", "INR", "d") == "Hi {amount}, 1"
+
+
+def test_templates_are_per_user():
+    ann, ben = client("set3@example.com"), client("set4@example.com")
+    post(ann, "/settings", **{**SETTINGS, "before_due": "Ann's private wording"})
+    assert "Ann's private wording" not in ben.get("/settings").get_data(as_text=True)
+    assert "friendly reminder" in _sent_text(ben, _post_invoice(ben, "2099-06-12")).get_content()
+
+
+def test_time_zone_change_moves_pending_reminders():
+    c = client("set5@example.com")
+    inv = _post_invoice(c, "2099-06-10")
+    assert _reminders(inv)["before_due"]["scheduled_for"] == "2099-06-07T04:30:00+00:00"
+    assert post(c, "/settings", **{**SETTINGS, "time_zone": "America/New_York"}).status_code == 302
+    # 10:00 in New York in June is 14:00 UTC.
+    assert _reminders(inv)["before_due"]["scheduled_for"] == "2099-06-07T14:00:00+00:00"
+    assert _reminders(inv)["after_due"]["scheduled_for"] == "2099-06-11T14:00:00+00:00"
+
+
+def test_manual_send_is_logged_and_leaves_scheduled_reminders_alone():
+    c = client("man1@example.com")
+    inv = _post_invoice(c, "2099-06-10")
+    box = _Outbox()
+    saved = _with_outbox(box)
+    try:
+        assert post(c, f"/invoices/{inv}/remind").status_code == 302
+        post(c, f"/invoices/{inv}/remind")  # a second manual send is allowed
+    finally:
+        payday.smtp_send = saved
+    assert len(box.msgs) == 2 and "friendly reminder" in box.msgs[0].get_content()  # due in the future: the "before" text
+    manual = rows("SELECT * FROM reminders WHERE invoice_id=? AND type='manual'", inv)
+    assert len(manual) == 2 and all(m["status"] == "sent" and m["sent_at"] for m in manual)
+    r = _reminders(inv)
+    assert r["before_due"]["status"] == "pending" and r["after_due"]["status"] == "pending"
+    assert "Manual" in c.get(f"/invoices/{inv}").get_data(as_text=True)
+
+
+def test_manual_send_uses_after_text_when_overdue_and_reports_failure():
+    c = client("man2@example.com")
+    inv = _post_invoice(c, "2020-01-10")
+    saved = _with_outbox(_Outbox())
+    try:
+        post(c, f"/invoices/{inv}/remind")
+    finally:
+        payday.smtp_send = saved
+    sent = rows("SELECT * FROM reminders WHERE invoice_id=? AND type='manual'", inv)[0]
+    assert sent["status"] == "sent"
+    saved = _with_outbox(_Outbox(fail=True))
+    try:
+        page = c.get(post(c, f"/invoices/{inv}/remind").headers["Location"]).get_data(as_text=True)
+    finally:
+        payday.smtp_send = saved
+    assert "did not send: boom" in page
+    failed = rows("SELECT * FROM reminders WHERE invoice_id=? AND type='manual' ORDER BY id DESC", inv)[0]
+    assert failed["status"] == "pending" and failed["attempts"] == 1  # retried like any other
+
+
+def test_manual_send_rules():
+    c = client("man3@example.com")
+    inv = _post_invoice(c, "2099-06-10")
+    post(c, f"/invoices/{inv}/paid")
+    assert post(c, f"/invoices/{inv}/remind").status_code == 400  # paid invoices get no reminders
+    other = client("man4@example.com")
+    inv2 = _post_invoice(other, "2099-06-10")
+    assert post(c, f"/invoices/{inv2}/remind").status_code == 404  # someone else's invoice
+    assert rows("SELECT * FROM reminders WHERE invoice_id=? AND type='manual'", inv2) == []
 
 
 if __name__ == "__main__":

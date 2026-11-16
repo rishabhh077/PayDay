@@ -8,7 +8,7 @@ import sqlite3
 import sys
 import threading
 from email.message import EmailMessage
-from email.utils import formatdate, make_msgid
+from email.utils import formatdate, make_msgid, parseaddr
 from time import sleep
 from datetime import date, datetime, time, timedelta, timezone
 from decimal import Decimal, InvalidOperation
@@ -343,6 +343,12 @@ def live_mode():
     return os.environ.get("PAYDAY_SEND_TO_CLIENTS") == "1"
 
 
+def sender_domain():
+    """Domain of the sending address, for the Message-ID. Mail systems expect it to match the sender's own domain."""
+    sender = parseaddr(os.environ.get("SMTP_FROM") or os.environ.get("SMTP_USER") or "")[1]
+    return sender.rpartition("@")[2] if "@" in sender else "payday.local"  # never None: that would do a slow hostname lookup
+
+
 def build_message(user, inv, kind, body=None):
     due = date.fromisoformat(inv["due_date"]).strftime("%d %b %Y")
     amount = money_text(inv["amount"])
@@ -352,7 +358,7 @@ def build_message(user, inv, kind, body=None):
     sign = user["name"] or user["email"]
     msg = EmailMessage()
     msg["Date"] = formatdate(localtime=False)
-    msg["Message-ID"] = make_msgid(domain="payday.local")
+    msg["Message-ID"] = make_msgid(domain=sender_domain())
     if live_mode():
         msg["To"] = inv["client_email"]
         msg["Reply-To"] = user["email"]  # the client's reply goes to the freelancer, not to the sending account

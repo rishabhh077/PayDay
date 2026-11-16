@@ -781,6 +781,27 @@ def test_invoice_page_flags_overdue_and_explains_a_failed_reminder():
     assert "Sent " in c.get(f"/invoices/{inv}").get_data(as_text=True)
 
 
+# --- Polish 5: Message-ID uses the sender's domain ---
+
+def test_message_id_uses_the_sending_domain():
+    user, inv = {"email": "me@example.com", "name": "Me"}, {"client_name": "K", "client_email": "k@example.com", "amount": 100,
+                                                            "currency": "INR", "description": "", "due_date": "2099-01-01"}
+    saved = {k: os.environ.pop(k, None) for k in ("SMTP_FROM", "SMTP_USER")}
+    try:
+        assert payday.build_message(user, inv, "before_due")["Message-ID"].endswith("@payday.local>")  # nothing configured
+        os.environ["SMTP_USER"] = "prithviworks27@gmail.com"
+        assert payday.build_message(user, inv, "before_due")["Message-ID"].endswith("@gmail.com>")
+        os.environ["SMTP_FROM"] = "Prithvi <hello@mydomain.in>"  # SMTP_FROM wins, even with a display name
+        assert payday.build_message(user, inv, "before_due")["Message-ID"].endswith("@mydomain.in>")
+        os.environ["SMTP_FROM"] = "not-an-address"
+        assert payday.build_message(user, inv, "before_due")["Message-ID"].endswith("@payday.local>")
+    finally:
+        for k in ("SMTP_FROM", "SMTP_USER"):
+            os.environ.pop(k, None)
+            if saved[k] is not None:
+                os.environ[k] = saved[k]
+
+
 if __name__ == "__main__":
     for name, fn in list(globals().items()):
         if name.startswith("test_"):

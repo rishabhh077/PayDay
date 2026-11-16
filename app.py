@@ -1,4 +1,4 @@
-"""PayDay, Phase 4: sending. Due reminders go out over SMTP, to the account owner's own address only."""
+"""PayDay, Phase 5: safety. Failed sends retry up to 3 times, an hour apart; failures show on the dashboard."""
 import logging
 import os
 import re
@@ -345,15 +345,22 @@ def smtp_send(msg):
         raise SendError(f"{type(e).__name__}: {e}") from e
 
 
-def send_due_reminders(db=None):
-    """Send every pending reminder whose time has come. Returns (sent, failed)."""
+MAX_ATTEMPTS = 3  # R6: the first try plus two retries
+RETRY_DELAY = timedelta(hours=1)
+
+
+def send_due_reminders(db=None, at=None):
+    """Send every pending reminder whose time has come. Returns (sent, failed attempts).
+
+    A failed attempt is retried an hour later until MAX_ATTEMPTS, then marked failed. `at` is for tests."""
+    t = at or now()
     own = db is None
     db = db or connect()
     sent = failed = 0
     try:
         due = db.execute(
             "SELECT r.id, r.type, r.attempts, r.invoice_id FROM reminders r JOIN invoices i ON i.id=r.invoice_id "
-            "WHERE r.status='pending' AND i.status='open' AND r.scheduled_for <= ? ORDER BY r.scheduled_for", (now(),)).fetchall()
+            "WHERE r.status='pending' AND i.status='open' AND r.scheduled_for <= ? ORDER BY r.scheduled_for", (t,)).fetchall()
         for r in due:
             # Claim the row first, so two overlapping runs cannot both send it.
             claimed = db.execute("UPDATE reminders SET attempts=attempts+1 WHERE id=? AND status='pending' AND attempts=?",
@@ -368,12 +375,18 @@ def send_due_reminders(db=None):
                     raise SendError("Invoice has no owner.")
                 smtp_send(build_message(user, inv, r["type"]))
             except Exception as e:  # noqa: BLE001 - any failure must be recorded, never crash the run
-                db.execute("UPDATE reminders SET status='failed', last_error=? WHERE id=?", (str(e)[:500], r["id"]))
+                tries = r["attempts"] + 1  # the claim above already counted this attempt
+                if tries >= MAX_ATTEMPTS:
+                    db.execute("UPDATE reminders SET status='failed', last_error=? WHERE id=?", (str(e)[:500], r["id"]))
+                    log.error("reminder failed for good: invoice=%s type=%s attempts=%s error=%s", r["invoice_id"], r["type"], tries, e)
+                else:
+                    retry_at = (datetime.fromisoformat(t) + RETRY_DELAY).isoformat(timespec="seconds")
+                    db.execute("UPDATE reminders SET scheduled_for=?, last_error=? WHERE id=?", (retry_at, str(e)[:500], r["id"]))
+                    log.warning("reminder failed, retrying at %s: invoice=%s type=%s attempt=%s error=%s", retry_at, r["invoice_id"], r["type"], tries, e)
                 db.commit()
-                log.error("reminder failed: invoice=%s type=%s error=%s", r["invoice_id"], r["type"], e)
                 failed += 1
                 continue
-            db.execute("UPDATE reminders SET status='sent', sent_at=?, last_error=NULL WHERE id=?", (now(), r["id"]))
+            db.execute("UPDATE reminders SET status='sent', sent_at=?, last_error=NULL WHERE id=?", (t, r["id"]))
             db.commit()
             log.info("reminder sent: invoice=%s type=%s to=%s", r["invoice_id"], r["type"], user["email"])
             sent += 1
@@ -402,7 +415,26 @@ def sum_by_currency(rows):
 
 @app.route("/")
 def home():
-    return redirect(url_for("invoices"))
+    return redirect(url_for("dashboard"))
+
+
+@app.route("/dashboard")
+def dashboard():
+    db, t = get_db(), today()
+    rows = [dict(r) for r in db.execute(
+        "SELECT * FROM invoices WHERE user_id = ? AND status = 'open' ORDER BY due_date, id", (g.user["id"],))]
+    for r in rows:
+        r["days"] = (date.fromisoformat(r["due_date"]) - date.fromisoformat(t)).days
+    overdue = [r for r in rows if r["days"] < 0]
+    # A reminder that failed on an invoice that is no longer open is moot, so only open invoices count.
+    failed = [dict(r) for r in db.execute(
+        "SELECT r.type, r.attempts, r.last_error, i.id AS invoice_id, i.client_name, i.currency, i.amount "
+        "FROM reminders r JOIN invoices i ON i.id = r.invoice_id "
+        "WHERE i.user_id = ? AND i.status = 'open' AND r.status = 'failed' ORDER BY r.scheduled_for", (g.user["id"],))]
+    return render_template(
+        "dashboard.html", today=t, count=len(rows), overdue=overdue, failed=failed,
+        unpaid_total=sum_by_currency(rows), overdue_total=sum_by_currency(overdue),
+    )
 
 
 @app.route("/invoices")
@@ -516,6 +548,6 @@ if __name__ == "__main__":
     if sys.argv[1:] == ["send-reminders"]:
         # Run this every few minutes (cron, launchd, or a loop).
         s, f = send_due_reminders()
-        print(f"sent {s}, failed {f}")
+        print(f"sent {s}, failed attempts {f} (retried hourly, up to {MAX_ATTEMPTS} tries each)")
         sys.exit(1 if f else 0)
     app.run(debug=True, port=int(os.environ.get("PORT", 5055)))

@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% from "_ui.html" import chip, totals, land, invoice_table %}
+{% block title %}Dashboard{% endblock %}
+
+{% block main %}
+{% call land("list") %}
+<h1>Dashboard</h1>
+{% if count %}
+<p class="lede">{{ totals(unpaid_total) }} across {{ count }} unpaid invoice{{ "s" if count != 1 }}.
+  {% if overdue %}{{ totals(overdue_total) }} is late.{% else %}Nothing is late.{% endif %}</p>
+{% else %}
+<p class="lede">Nothing is waiting to be paid.</p>
+{% endif %}
+{% endcall %}
+
+{% if failed %}
+<h2>Reminders that did not send <span class="tag coral">{{ failed|length }}</span></h2>
+<div class="sheet">
+<table>
+  <thead><tr><th class="col-due">Reminder</th><th class="col-who">Client</th><th>What went wrong</th><th class="num col-amt">Amount</th></tr></thead>
+  <tbody>
+  {% for r in failed %}
+  <tr>
+    <td class="due">{{ "Before due date" if r.type == "before_due" else "After due date" if r.type == "after_due" else "Manual" }}</td>
+    <td class="who"><a href="{{ url_for('invoice', invoice_id=r.invoice_id) }}">{{ r.client_name }}</a></td>
+    <td class="for">Failed after {{ r.attempts }} attempts. {{ r.last_error }}</td>
+    <td class="num">{{ r.currency }} {{ r.amount|money }}</td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endif %}
+
+{% if overdue %}
+<h2>Overdue <span class="tag coral">{{ overdue|length }}</span></h2>
+{{ invoice_table(overdue, "Due", "unpaid") }}
+{% elif not failed %}
+<h2>All clear</h2>
+<div class="sheet empty">
+  <p>{{ "No invoice is late and no reminder has failed." if count else "Add an invoice when you send it to a client." }}</p>
+  <a class="cap" href="{{ url_for('invoice_form') }}">New invoice {{ chip("plus") }}</a>
+</div>
+{% endif %}
+{% endblock %}

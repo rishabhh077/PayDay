@@ -585,7 +585,7 @@ def invoice(invoice_id):
     history = get_db().execute(
         "SELECT a.*, r.type FROM reminder_attempts a JOIN reminders r ON r.id = a.reminder_id "
         "WHERE r.invoice_id=? ORDER BY a.id DESC", (invoice_id,)).fetchall()
-    return render_template("invoice.html", inv=inv, today=today(), reminders=reminders, history=history)
+    return render_template("invoice.html", inv=inv, today=today(), reminders=reminders, history=history, now_iso=now())
 
 
 @app.post("/invoices/<int:invoice_id>/paid")
@@ -665,6 +665,11 @@ def remind(invoice_id):
     else:
         flash(f"The reminder did not send: {row['last_error']} PayDay will try again in an hour.")
     return redirect(url_for("invoice", invoice_id=invoice_id))
+
+
+@app.context_processor
+def inject_mode():
+    return {"live_mode": live_mode()}
 
 
 SAMPLE = ("Kavya Rao", "48,000.00", "INR", "20 Nov 2026")  # what the settings preview fills in

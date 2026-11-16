@@ -33,6 +33,9 @@
   {% endif %}
 </header>
 <main id="main">
+  {% if g.user and not live_mode %}
+  <p class="testmode" role="note">Test mode: emails go to you only.</p>
+  {% endif %}
   {% for message in get_flashed_messages() %}
   <p class="flash" role="status"><span class="chip">{{ icon("check") }}</span>{{ message }}</p>
   {% endfor %}

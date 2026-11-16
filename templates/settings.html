@@ -17,7 +17,7 @@
   <textarea id="{{ kind }}" name="{{ kind }}" maxlength="2000"
     {% if errors.get(kind) %}aria-invalid="true" aria-describedby="{{ kind }}-error"{% endif %}>{{ v[kind] }}</textarea>
   {% if errors.get(kind) %}<p class="error" id="{{ kind }}-error">{{ errors[kind] }}</p>{% endif %}
-  <p class="preview-label">How it reads now, with an example invoice:</p>
+  <p class="preview-label">How the saved text reads, with an example invoice:</p>
   <p class="preview">{{ previews[kind] }}</p>
 </div>
 {% endmacro %}

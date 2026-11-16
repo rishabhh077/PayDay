@@ -23,7 +23,7 @@
   <tr>
     <td class="due">{{ "Before due date" if r.type == "before_due" else "After due date" if r.type == "after_due" else "Manual" }}</td>
     <td class="who"><a href="{{ url_for('invoice', invoice_id=r.invoice_id) }}">{{ r.client_name }}</a></td>
-    <td class="for">Failed after {{ r.attempts }} attempts. {{ r.last_error }}</td>
+    <td class="for">Could not send after {{ r.attempts }} attempts. Check your email settings, then use Send reminder now on the invoice.<br><small>{{ r.last_error }}</small></td>
     <td class="num">{{ r.currency }} {{ r.amount|money }}</td>
   </tr>
   {% endfor %}

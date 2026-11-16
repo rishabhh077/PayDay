@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-11-15T00:00:00Z",
+  "generatedAt": "2026-11-17T00:00:00Z",
   "title": "Design System: PayDay",
   "extensions": {
     "colorMeta": {
@@ -239,7 +239,7 @@
       "refersTo": "capsule",
       "description": "The primary action on a screen: sun fill, trailing ink chip that slides on hover.",
       "html": "<button class=\"ds-cap\">New invoice <span class=\"ds-chip\"><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M12 5v14M5 12h14\"/></svg></span></button>",
-      "css": ".ds-cap { display: inline-flex; align-items: center; gap: 10px; min-height: 44px; padding: 6px 6px 6px 18px; border: 0; border-radius: 999px; background: var(--sun, #F5E211); color: var(--ink, #2C2E2A); font: 500 1.0625rem/1.2 \"Bricolage Grotesque\", \"Avenir Next\", \"Segoe UI\", sans-serif; text-decoration: none; white-space: nowrap; cursor: pointer; } .ds-cap .ds-chip { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; background: var(--ink, #2C2E2A); color: var(--sun, #F5E211); transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1); } .ds-cap:hover .ds-chip, .ds-cap:focus-visible .ds-chip { transform: translateX(4px); } .ds-cap:active .ds-chip { transform: translateX(1px) scale(0.92); } .ds-cap svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; } .ds-cap:focus-visible { outline: 3px solid var(--sky, #2BA0FF); outline-offset: 3px; } @media (prefers-reduced-motion: reduce) { .ds-cap .ds-chip { transition: none; } }"
+      "css": ".ds-cap { display: inline-flex; align-items: center; gap: 10px; min-height: 44px; padding: 6px 6px 6px 18px; border: 0; border-radius: 999px; background: var(--sun, #F5E211); color: var(--ink, #2C2E2A); font: 500 1.0625rem/1.2 \"Bricolage Grotesque\", \"Avenir Next\", \"Segoe UI\", sans-serif; text-decoration: none; white-space: nowrap; cursor: pointer; } .ds-cap .ds-chip { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; background: var(--ink, #2C2E2A); color: var(--sun, #F5E211); transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1); } .ds-cap:hover .ds-chip, .ds-cap:focus-visible .ds-chip { transform: translateX(4px); } .ds-cap:active .ds-chip { transform: translateX(1px) scale(0.92); } .ds-cap svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; } .ds-cap:focus-visible { outline: 3px solid var(--ink, #2C2E2A); outline-offset: 3px; } @media (prefers-reduced-motion: reduce) { .ds-cap .ds-chip { transition: none; } }"
     },
     {
       "name": "Capsule, Land",
@@ -247,7 +247,7 @@
       "refersTo": "capsule-land",
       "description": "Settles something: mark as paid.",
       "html": "<button class=\"ds-cap ds-cap-land\">Mark as paid <span class=\"ds-chip\"><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M5 12.5l4.5 4.5L19 7.5\"/></svg></span></button>",
-      "css": ".ds-cap { display: inline-flex; align-items: center; gap: 10px; min-height: 44px; padding: 6px 6px 6px 18px; border: 0; border-radius: 999px; background: var(--sun, #F5E211); color: var(--ink, #2C2E2A); font: 500 1.0625rem/1.2 \"Bricolage Grotesque\", \"Avenir Next\", \"Segoe UI\", sans-serif; text-decoration: none; white-space: nowrap; cursor: pointer; } .ds-cap .ds-chip { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; background: var(--ink, #2C2E2A); color: var(--sun, #F5E211); transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1); } .ds-cap:hover .ds-chip, .ds-cap:focus-visible .ds-chip { transform: translateX(4px); } .ds-cap:active .ds-chip { transform: translateX(1px) scale(0.92); } .ds-cap svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; } .ds-cap:focus-visible { outline: 3px solid var(--sky, #2BA0FF); outline-offset: 3px; } @media (prefers-reduced-motion: reduce) { .ds-cap .ds-chip { transition: none; } } .ds-cap-land { background: var(--land, #8ED462); } .ds-cap-land .ds-chip { color: var(--land, #8ED462); }"
+      "css": ".ds-cap { display: inline-flex; align-items: center; gap: 10px; min-height: 44px; padding: 6px 6px 6px 18px; border: 0; border-radius: 999px; background: var(--sun, #F5E211); color: var(--ink, #2C2E2A); font: 500 1.0625rem/1.2 \"Bricolage Grotesque\", \"Avenir Next\", \"Segoe UI\", sans-serif; text-decoration: none; white-space: nowrap; cursor: pointer; } .ds-cap .ds-chip { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; background: var(--ink, #2C2E2A); color: var(--sun, #F5E211); transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1); } .ds-cap:hover .ds-chip, .ds-cap:focus-visible .ds-chip { transform: translateX(4px); } .ds-cap:active .ds-chip { transform: translateX(1px) scale(0.92); } .ds-cap svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; } .ds-cap:focus-visible { outline: 3px solid var(--ink, #2C2E2A); outline-offset: 3px; } @media (prefers-reduced-motion: reduce) { .ds-cap .ds-chip { transition: none; } } .ds-cap-land { background: var(--land, #8ED462); } .ds-cap-land .ds-chip { color: var(--land, #8ED462); }"
     },
     {
       "name": "Capsule, Sky",
@@ -255,7 +255,7 @@
       "refersTo": "capsule-sky",
       "description": "Edit.",
       "html": "<button class=\"ds-cap ds-cap-sky\">Edit <span class=\"ds-chip\"><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M5 12h14M13 6l6 6-6 6\"/></svg></span></button>",
-      "css": ".ds-cap { display: inline-flex; align-items: center; gap: 10px; min-height: 44px; padding: 6px 6px 6px 18px; border: 0; border-radius: 999px; background: var(--sun, #F5E211); color: var(--ink, #2C2E2A); font: 500 1.0625rem/1.2 \"Bricolage Grotesque\", \"Avenir Next\", \"Segoe UI\", sans-serif; text-decoration: none; white-space: nowrap; cursor: pointer; } .ds-cap .ds-chip { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; background: var(--ink, #2C2E2A); color: var(--sun, #F5E211); transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1); } .ds-cap:hover .ds-chip, .ds-cap:focus-visible .ds-chip { transform: translateX(4px); } .ds-cap:active .ds-chip { transform: translateX(1px) scale(0.92); } .ds-cap svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; } .ds-cap:focus-visible { outline: 3px solid var(--sky, #2BA0FF); outline-offset: 3px; } @media (prefers-reduced-motion: reduce) { .ds-cap .ds-chip { transition: none; } } .ds-cap-sky { background: var(--sky, #2BA0FF); } .ds-cap-sky .ds-chip { color: var(--sky, #2BA0FF); }"
+      "css": ".ds-cap { display: inline-flex; align-items: center; gap: 10px; min-height: 44px; padding: 6px 6px 6px 18px; border: 0; border-radius: 999px; background: var(--sun, #F5E211); color: var(--ink, #2C2E2A); font: 500 1.0625rem/1.2 \"Bricolage Grotesque\", \"Avenir Next\", \"Segoe UI\", sans-serif; text-decoration: none; white-space: nowrap; cursor: pointer; } .ds-cap .ds-chip { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; background: var(--ink, #2C2E2A); color: var(--sun, #F5E211); transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1); } .ds-cap:hover .ds-chip, .ds-cap:focus-visible .ds-chip { transform: translateX(4px); } .ds-cap:active .ds-chip { transform: translateX(1px) scale(0.92); } .ds-cap svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; } .ds-cap:focus-visible { outline: 3px solid var(--ink, #2C2E2A); outline-offset: 3px; } @media (prefers-reduced-motion: reduce) { .ds-cap .ds-chip { transition: none; } } .ds-cap-sky { background: var(--sky, #2BA0FF); } .ds-cap-sky .ds-chip { color: var(--sky, #2BA0FF); }"
     },
     {
       "name": "Capsule, Lilac",
@@ -263,7 +263,7 @@
       "refersTo": "capsule-lilac",
       "description": "Archive.",
       "html": "<button class=\"ds-cap ds-cap-lilac\">Archive <span class=\"ds-chip\"><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M5 12h14M13 6l6 6-6 6\"/></svg></span></button>",
-      "css": ".ds-cap { display: inline-flex; align-items: center; gap: 10px; min-height: 44px; padding: 6px 6px 6px 18px; border: 0; border-radius: 999px; background: var(--sun, #F5E211); color: var(--ink, #2C2E2A); font: 500 1.0625rem/1.2 \"Bricolage Grotesque\", \"Avenir Next\", \"Segoe UI\", sans-serif; text-decoration: none; white-space: nowrap; cursor: pointer; } .ds-cap .ds-chip { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; background: var(--ink, #2C2E2A); color: var(--sun, #F5E211); transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1); } .ds-cap:hover .ds-chip, .ds-cap:focus-visible .ds-chip { transform: translateX(4px); } .ds-cap:active .ds-chip { transform: translateX(1px) scale(0.92); } .ds-cap svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; } .ds-cap:focus-visible { outline: 3px solid var(--sky, #2BA0FF); outline-offset: 3px; } @media (prefers-reduced-motion: reduce) { .ds-cap .ds-chip { transition: none; } } .ds-cap-lilac { background: var(--lilac, #EBC1FF); } .ds-cap-lilac .ds-chip { color: var(--lilac, #EBC1FF); }"
+      "css": ".ds-cap { display: inline-flex; align-items: center; gap: 10px; min-height: 44px; padding: 6px 6px 6px 18px; border: 0; border-radius: 999px; background: var(--sun, #F5E211); color: var(--ink, #2C2E2A); font: 500 1.0625rem/1.2 \"Bricolage Grotesque\", \"Avenir Next\", \"Segoe UI\", sans-serif; text-decoration: none; white-space: nowrap; cursor: pointer; } .ds-cap .ds-chip { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; background: var(--ink, #2C2E2A); color: var(--sun, #F5E211); transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1); } .ds-cap:hover .ds-chip, .ds-cap:focus-visible .ds-chip { transform: translateX(4px); } .ds-cap:active .ds-chip { transform: translateX(1px) scale(0.92); } .ds-cap svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; } .ds-cap:focus-visible { outline: 3px solid var(--ink, #2C2E2A); outline-offset: 3px; } @media (prefers-reduced-motion: reduce) { .ds-cap .ds-chip { transition: none; } } .ds-cap-lilac { background: var(--lilac, #EBC1FF); } .ds-cap-lilac .ds-chip { color: var(--lilac, #EBC1FF); }"
     },
     {
       "name": "Capsule, Coral",
@@ -271,7 +271,7 @@
       "refersTo": "capsule-coral",
       "description": "The confirmed second step of a delete.",
       "html": "<button class=\"ds-cap ds-cap-coral\">Delete this invoice <span class=\"ds-chip\"><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M5 12h14M13 6l6 6-6 6\"/></svg></span></button>",
-      "css": ".ds-cap { display: inline-flex; align-items: center; gap: 10px; min-height: 44px; padding: 6px 6px 6px 18px; border: 0; border-radius: 999px; background: var(--sun, #F5E211); color: var(--ink, #2C2E2A); font: 500 1.0625rem/1.2 \"Bricolage Grotesque\", \"Avenir Next\", \"Segoe UI\", sans-serif; text-decoration: none; white-space: nowrap; cursor: pointer; } .ds-cap .ds-chip { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; background: var(--ink, #2C2E2A); color: var(--sun, #F5E211); transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1); } .ds-cap:hover .ds-chip, .ds-cap:focus-visible .ds-chip { transform: translateX(4px); } .ds-cap:active .ds-chip { transform: translateX(1px) scale(0.92); } .ds-cap svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; } .ds-cap:focus-visible { outline: 3px solid var(--sky, #2BA0FF); outline-offset: 3px; } @media (prefers-reduced-motion: reduce) { .ds-cap .ds-chip { transition: none; } } .ds-cap-coral { background: var(--coral, #FF705D); } .ds-cap-coral .ds-chip { color: var(--coral, #FF705D); }"
+      "css": ".ds-cap { display: inline-flex; align-items: center; gap: 10px; min-height: 44px; padding: 6px 6px 6px 18px; border: 0; border-radius: 999px; background: var(--sun, #F5E211); color: var(--ink, #2C2E2A); font: 500 1.0625rem/1.2 \"Bricolage Grotesque\", \"Avenir Next\", \"Segoe UI\", sans-serif; text-decoration: none; white-space: nowrap; cursor: pointer; } .ds-cap .ds-chip { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; background: var(--ink, #2C2E2A); color: var(--sun, #F5E211); transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1); } .ds-cap:hover .ds-chip, .ds-cap:focus-visible .ds-chip { transform: translateX(4px); } .ds-cap:active .ds-chip { transform: translateX(1px) scale(0.92); } .ds-cap svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; } .ds-cap:focus-visible { outline: 3px solid var(--ink, #2C2E2A); outline-offset: 3px; } @media (prefers-reduced-motion: reduce) { .ds-cap .ds-chip { transition: none; } } .ds-cap-coral { background: var(--coral, #FF705D); } .ds-cap-coral .ds-chip { color: var(--coral, #FF705D); }"
     },
     {
       "name": "Outlined Capsule",
@@ -279,7 +279,7 @@
       "refersTo": "capsule-line",
       "description": "Lower-stakes moves: cancel, first delete step. No chip.",
       "html": "<button class=\"ds-cap-line\">Cancel</button>",
-      "css": ".ds-cap-line { display: inline-flex; align-items: center; min-height: 44px; padding: 6px 18px; border: 0; border-radius: 999px; background: transparent; box-shadow: inset 0 0 0 1.5px var(--ink, #2C2E2A); color: var(--ink, #2C2E2A); font: 500 1.0625rem/1.2 \"Bricolage Grotesque\", \"Avenir Next\", \"Segoe UI\", sans-serif; text-decoration: none; white-space: nowrap; cursor: pointer; } .ds-cap-line:hover { background: var(--sheet, #FFFFFF); } .ds-cap-line:focus-visible { outline: 3px solid var(--sky, #2BA0FF); outline-offset: 3px; }"
+      "css": ".ds-cap-line { display: inline-flex; align-items: center; min-height: 44px; padding: 6px 18px; border: 0; border-radius: 999px; background: transparent; box-shadow: inset 0 0 0 1.5px var(--ink, #2C2E2A); color: var(--ink, #2C2E2A); font: 500 1.0625rem/1.2 \"Bricolage Grotesque\", \"Avenir Next\", \"Segoe UI\", sans-serif; text-decoration: none; white-space: nowrap; cursor: pointer; } .ds-cap-line:hover { background: var(--sheet, #FFFFFF); } .ds-cap-line:focus-visible { outline: 3px solid var(--ink, #2C2E2A); outline-offset: 3px; }"
     },
     {
       "name": "Back Capsule",
@@ -287,7 +287,7 @@
       "refersTo": "capsule-line",
       "description": "Backward move: outlined, chip on the leading edge, slides left.",
       "html": "<a class=\"ds-cap-back\" href=\"#\"><span class=\"ds-chip\"><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M19 12H5M11 6l-6 6 6 6\"/></svg></span> Back to invoices</a>",
-      "css": ".ds-cap-back { display: inline-flex; align-items: center; gap: 10px; min-height: 44px; padding: 6px 18px 6px 6px; border-radius: 999px; box-shadow: inset 0 0 0 1.5px var(--ink, #2C2E2A); color: var(--ink, #2C2E2A); font: 500 1.0625rem/1.2 \"Bricolage Grotesque\", \"Avenir Next\", \"Segoe UI\", sans-serif; text-decoration: none; white-space: nowrap; } .ds-cap-back:hover { background: var(--sheet, #FFFFFF); } .ds-cap-back .ds-chip { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; background: var(--ink, #2C2E2A); color: var(--sun, #F5E211); transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1); } .ds-cap-back:hover .ds-chip, .ds-cap-back:focus-visible .ds-chip { transform: translateX(-4px); } .ds-cap-back svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; } .ds-cap-back:focus-visible { outline: 3px solid var(--sky, #2BA0FF); outline-offset: 3px; }"
+      "css": ".ds-cap-back { display: inline-flex; align-items: center; gap: 10px; min-height: 44px; padding: 6px 18px 6px 6px; border-radius: 999px; box-shadow: inset 0 0 0 1.5px var(--ink, #2C2E2A); color: var(--ink, #2C2E2A); font: 500 1.0625rem/1.2 \"Bricolage Grotesque\", \"Avenir Next\", \"Segoe UI\", sans-serif; text-decoration: none; white-space: nowrap; } .ds-cap-back:hover { background: var(--sheet, #FFFFFF); } .ds-cap-back .ds-chip { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; background: var(--ink, #2C2E2A); color: var(--sun, #F5E211); transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1); } .ds-cap-back:hover .ds-chip, .ds-cap-back:focus-visible .ds-chip { transform: translateX(-4px); } .ds-cap-back svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; } .ds-cap-back:focus-visible { outline: 3px solid var(--ink, #2C2E2A); outline-offset: 3px; }"
     },
     {
       "name": "Status Tabs",
@@ -295,13 +295,13 @@
       "refersTo": "tab-current",
       "description": "Outlined capsules in a row; the current one fills ink.",
       "html": "<nav class=\"ds-tabs\"><a class=\"ds-cap-line\" href=\"#\" aria-current=\"page\">Unpaid</a><a class=\"ds-cap-line\" href=\"#\">Paid</a><a class=\"ds-cap-line\" href=\"#\">Archived</a></nav>",
-      "css": ".ds-cap-line { display: inline-flex; align-items: center; min-height: 44px; padding: 6px 18px; border: 0; border-radius: 999px; background: transparent; box-shadow: inset 0 0 0 1.5px var(--ink, #2C2E2A); color: var(--ink, #2C2E2A); font: 500 1.0625rem/1.2 \"Bricolage Grotesque\", \"Avenir Next\", \"Segoe UI\", sans-serif; text-decoration: none; white-space: nowrap; cursor: pointer; } .ds-cap-line:hover { background: var(--sheet, #FFFFFF); } .ds-cap-line:focus-visible { outline: 3px solid var(--sky, #2BA0FF); outline-offset: 3px; } .ds-tabs { display: flex; flex-wrap: wrap; gap: 8px; } .ds-tabs .ds-cap-line[aria-current] { background: var(--ink, #2C2E2A); color: var(--water, #F5F1E4); box-shadow: none; }"
+      "css": ".ds-cap-line { display: inline-flex; align-items: center; min-height: 44px; padding: 6px 18px; border: 0; border-radius: 999px; background: transparent; box-shadow: inset 0 0 0 1.5px var(--ink, #2C2E2A); color: var(--ink, #2C2E2A); font: 500 1.0625rem/1.2 \"Bricolage Grotesque\", \"Avenir Next\", \"Segoe UI\", sans-serif; text-decoration: none; white-space: nowrap; cursor: pointer; } .ds-cap-line:hover { background: var(--sheet, #FFFFFF); } .ds-cap-line:focus-visible { outline: 3px solid var(--ink, #2C2E2A); outline-offset: 3px; } .ds-tabs { display: flex; flex-wrap: wrap; gap: 8px; } .ds-tabs .ds-cap-line[aria-current] { background: var(--ink, #2C2E2A); color: var(--water, #F5F1E4); box-shadow: none; }"
     },
     {
       "name": "Count Tag",
       "kind": "chip",
       "refersTo": "tag",
-      "description": "A count beside a section title; coral for overdue.",
+      "description": "A count beside a section title; coral only for exceptions (overdue, failed), also used as the Overdue and Failed tags on the invoice page.",
       "html": "<span class=\"ds-tag ds-tag-coral\">3</span> <span class=\"ds-tag\">6</span>",
       "css": ".ds-tag { display: inline-block; padding: 3px 12px; border-radius: 999px; font: 500 0.875rem/1.4 \"Bricolage Grotesque\", \"Avenir Next\", \"Segoe UI\", sans-serif; white-space: nowrap; background: var(--sun, #F5E211); color: var(--ink, #2C2E2A); } .ds-tag-coral { background: var(--coral, #FF705D); }"
     },
@@ -314,12 +314,28 @@
       "css": ".ds-flash { display: flex; align-items: center; gap: 12px; width: fit-content; margin: 0; padding: 6px 20px 6px 6px; border-radius: 999px; background: var(--ink, #2C2E2A); color: var(--water, #F5F1E4); font: 500 1.0625rem/1.5 \"Bricolage Grotesque\", \"Avenir Next\", \"Segoe UI\", sans-serif; } .ds-flash .ds-chip { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; background: var(--land, #8ED462); color: var(--ink, #2C2E2A); } .ds-flash svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }"
     },
     {
+      "name": "Test Mode Note",
+      "kind": "custom",
+      "refersTo": "testmode",
+      "description": "White 12px-corner line at the top of every signed-in page; hidden when client sending is on.",
+      "html": "<p class=\"ds-testmode\" role=\"note\">Test mode: emails go to you only.</p>",
+      "css": ".ds-testmode { width: fit-content; margin: 0; padding: 6px 16px; border-radius: 12px; background: var(--sheet, #FFFFFF); color: var(--ink, #2C2E2A); font: 500 0.9375rem/1.4 \"Bricolage Grotesque\", \"Avenir Next\", \"Segoe UI\", sans-serif; }"
+    },
+    {
+      "name": "Form Error",
+      "kind": "custom",
+      "refersTo": "input",
+      "description": "Form-level error at the top of sign in and create account; 22px gap below.",
+      "html": "<p class=\"ds-form-error\" role=\"alert\">Email or password is wrong.</p>",
+      "css": ".ds-form-error { margin: 0 0 22px; color: #B3261E; font: 500 0.9375rem/1.5 \"Bricolage Grotesque\", \"Avenir Next\", \"Segoe UI\", sans-serif; }"
+    },
+    {
       "name": "Field",
       "kind": "input",
       "refersTo": "input",
       "description": "Label above, ink-bordered input, inline hint; error state turns the border red with a message below.",
       "html": "<div class=\"ds-field\"><label for=\"ds-f1\">What it is for <span class=\"ds-hint\">Optional</span></label><input id=\"ds-f1\" type=\"text\" placeholder=\"12500.00\"></div>",
-      "css": ".ds-field { font: 500 1.0625rem/1.5 \"Bricolage Grotesque\", \"Avenir Next\", \"Segoe UI\", sans-serif; color: var(--ink, #2C2E2A); max-width: 320px; } .ds-field label { display: block; margin-bottom: 6px; } .ds-field .ds-hint { color: var(--ink-2, #55584F); font-size: 0.875rem; } .ds-field input { width: 100%; min-height: 48px; padding: 10px 16px; border: 1.5px solid var(--ink, #2C2E2A); border-radius: 16px; background: var(--sheet, #FFFFFF); color: var(--ink, #2C2E2A); font: inherit; font-variant-numeric: tabular-nums; } .ds-field input::placeholder { color: #6B6E64; } .ds-field input:focus-visible { outline: 3px solid var(--sky, #2BA0FF); outline-offset: 2px; } .ds-field input[aria-invalid=\"true\"] { border-color: #B3261E; box-shadow: inset 0 0 0 1px #B3261E; }"
+      "css": ".ds-field { font: 500 1.0625rem/1.5 \"Bricolage Grotesque\", \"Avenir Next\", \"Segoe UI\", sans-serif; color: var(--ink, #2C2E2A); max-width: 320px; } .ds-field label { display: block; margin-bottom: 6px; } .ds-field .ds-hint { color: var(--ink-2, #55584F); font-size: 0.875rem; } .ds-field input { width: 100%; min-height: 48px; padding: 10px 16px; border: 1.5px solid var(--ink, #2C2E2A); border-radius: 16px; background: var(--sheet, #FFFFFF); color: var(--ink, #2C2E2A); font: inherit; font-variant-numeric: tabular-nums; } .ds-field input::placeholder { color: #6B6E64; } .ds-field input:focus-visible { outline: 3px solid var(--ink, #2C2E2A); outline-offset: 2px; } .ds-field input[aria-invalid=\"true\"] { border-color: #B3261E; box-shadow: inset 0 0 0 1px #B3261E; }"
     },
     {
       "name": "Sheet Table",
@@ -332,7 +348,7 @@
   ],
   "narrative": {
     "northStar": "The Guide Map",
-    "overview": "PayDay is drawn like the fold-out map handed over at a garden gate: cream water, one green headland, and a handful of flat-colour markers that say where to go next. The system grew from the catalog world Gardens Guide Map (`aww2-zoo-gardens-guide-map`). Every page opens on the headland, a single organic green lobe whose coast leaves the frame at the top and left. The page heading and one plain sentence sit on that land; the working data sits below it on white sheets.\n\nColour is flat. There are no gradients, no shadows, and no textures. Hierarchy comes from size alone, because the one typeface is set at one weight throughout. Controls are capsules, and the ones that act carry a round ink chip that slides on hover with a small overshoot. That slide is the system's only motion gesture.\n\nDensity is that of a working tool: tables and definition lists, generous row height, no cards inside cards, no metric tiles.",
+    "overview": "PayDay is drawn like the fold-out map handed over at a garden gate: cream water, one green headland, and a handful of flat-colour markers that say where to go next. The system grew from the catalog world Gardens Guide Map (`aww2-zoo-gardens-guide-map`). Every page, signed in or out, opens on the headland, a single organic green lobe whose coast leaves the frame at the top and left. The page heading and one plain sentence sit on that land; the working data sits below it on white sheets.\n\nColour is flat. There are no gradients, no shadows, and no textures. Hierarchy comes from size alone, because the one typeface is set at one weight throughout. Controls are capsules, and the ones that act carry a round ink chip that slides on hover with a small overshoot. That slide is the system's only motion gesture.\n\nDensity is that of a working tool: tables and definition lists, generous row height, no cards inside cards, no metric tiles.",
     "keyCharacteristics": [
       "One green headland per page, carrying the heading and a single sentence.",
       "Flat colour only; depth is stated by ground colour (cream, green, white).",
@@ -342,6 +358,11 @@
       "Numbers are tabular everywhere money or dates appear."
     ],
     "rules": [
+      {
+        "name": "The Flag Rule",
+        "body": "Coral flags exceptions only: count tags on the Overdue and failed-reminder sections, an \"Overdue\" tag and a \"Failed\" tag on the invoice page. Open, Paid, and Archived status are plain words in Ink. There are no per-row status pills; a table row that is late is already under an Overdue heading.",
+        "section": "colors"
+      },
       {
         "name": "The Ink On Colour Rule",
         "body": "Text on any marker colour, on the land, and on the sun is always Ink. Marker colours are fills; they are never used as text colours.",
@@ -375,7 +396,9 @@
       "Do keep text on Sun, Land, Coral, Sky, and Lilac in Ink.",
       "Do put tables, fact lists, and forms on a white sheet with a 22px corner.",
       "Do use tabular figures for money and dates.",
-      "Do keep the chip slide as the only animated gesture and switch it off under reduced motion."
+      "Do keep the chip slide as the only animated gesture and switch it off under reduced motion.",
+      "Do write status as plain Ink words and flag only exceptions (Overdue, Failed) with a Coral tag.",
+      "Do mark focus with the 3px Ink outline."
     ],
     "donts": [
       "Don't add shadows, gradients, blurs, or textures; a surface is its flat fill.",
@@ -383,11 +406,12 @@
       "Don't use a marker colour as text, or Ink 2 on anything but white or cream.",
       "Don't nest a sheet inside a sheet or square off a corner.",
       "Don't place more than one headland on a page or let it float clear of the top and left edges.",
-      "Don't give a marker colour a second meaning; coral stays for overdue and delete."
+      "Don't give a marker colour a second meaning; coral stays for exceptions (overdue, failed) and delete.",
+      "Don't add per-row status pills or colour Open, Paid, or Archived.",
+      "Don't use Sky for focus."
     ]
   },
   "openItems": [
-    "Bricolage Grotesque loads from Google Fonts; self-host it.",
-    "Focus ring colour (sky) is under 3:1 on cream, white, and land; geometry is settled, colour is not."
+    "Bricolage Grotesque loads from Google Fonts; self-hosting awaits the owner's permission."
   ]
 }

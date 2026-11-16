@@ -205,7 +205,7 @@ def test_reminders_created_at_10am_local():
     assert r["before_due"]["scheduled_for"] == "2099-06-07T04:30:00+00:00"
     assert r["after_due"]["scheduled_for"] == "2099-06-11T04:30:00+00:00"
     assert all(x["status"] == "pending" and x["sent_at"] is None for x in r.values())
-    assert "scheduled, not sent yet" in c.get(f"/invoices/{inv}").get_data(as_text=True)
+    assert "Scheduled for" in c.get(f"/invoices/{inv}").get_data(as_text=True)
 
 
 def test_past_before_due_is_skipped():
@@ -327,7 +327,7 @@ def test_failed_send_retries_hourly_then_fails_and_shows_on_dashboard():
     assert _run(bad, T0) == (0, 1)
     r = _reminders(inv)["before_due"]
     assert r["status"] == "pending" and r["attempts"] == 1 and r["scheduled_for"] == _at(1) and r["last_error"] == "boom"
-    assert "attempt 1 failed, trying again" in c.get(f"/invoices/{inv}").get_data(as_text=True)
+    assert "Attempt 1 failed, trying again" in c.get(f"/invoices/{inv}").get_data(as_text=True)
     assert "did not send" not in c.get("/dashboard").get_data(as_text=True)  # still retrying, not failed
     assert _run(bad, _at(0.5)) == (0, 0)  # too early: an hour has not passed
     assert _run(bad, _at(1)) == (0, 1) and _reminders(inv)["before_due"]["attempts"] == 2
@@ -336,9 +336,9 @@ def test_failed_send_retries_hourly_then_fails_and_shows_on_dashboard():
     assert r["status"] == "failed" and r["attempts"] == 3 and r["sent_at"] is None
     assert _run(bad, _at(9)) == (0, 0)  # never a fourth try
     page = c.get("/dashboard").get_data(as_text=True)
-    assert "did not send" in page and "Failed after 3 attempts" in page and "boom" in page
-    assert "failed after 3 attempts" in c.get(f"/invoices/{inv}").get_data(as_text=True)
-    assert "Failed after 3 attempts" not in client("safe2@example.com").get("/dashboard").get_data(as_text=True)  # other users never see it
+    assert "did not send" in page and "Could not send after 3 attempts" in page and "boom" in page
+    assert "after 3 attempts" in c.get(f"/invoices/{inv}").get_data(as_text=True)
+    assert "Could not send after 3 attempts" not in client("safe2@example.com").get("/dashboard").get_data(as_text=True)  # other users never see it
 
 
 def test_retry_that_works_sends_once():
@@ -743,6 +743,42 @@ def test_history_goes_away_with_the_invoice():
     assert len(_attempts(inv)) == 1
     post(c, f"/invoices/{inv}/delete")
     assert rows("SELECT * FROM invoices WHERE id=?", inv) == [] and _attempts(inv) == []
+
+
+# --- Polish 4: design review fixes ---
+
+def test_test_mode_notice_shows_on_every_signed_in_page_and_not_when_live():
+    c = client("ds1@example.com")
+    inv = _post_invoice(c, "2099-06-10")
+    for url in ("/dashboard", "/invoices", f"/invoices/{inv}", "/invoices/new", "/settings"):
+        assert "Test mode: emails go to you only" in c.get(url).get_data(as_text=True), url
+    assert "Test mode: emails" not in anon().get("/login").get_data(as_text=True)  # signed-out pages have no notice
+    os.environ["PAYDAY_SEND_TO_CLIENTS"] = "1"
+    try:
+        assert "Test mode: emails" not in c.get("/dashboard").get_data(as_text=True)
+    finally:
+        os.environ.pop("PAYDAY_SEND_TO_CLIENTS", None)
+
+
+def test_invoice_page_flags_overdue_and_explains_a_failed_reminder():
+    c = client("ds2@example.com")
+    inv = _post_invoice(c, "2020-01-10")
+    page = c.get(f"/invoices/{inv}").get_data(as_text=True)
+    assert '<span class="tag coral">Overdue</span>' in page and "Due now, goes out at the next run" in page
+    r = _reminders(inv)["after_due"]
+    db = payday.connect()
+    db.execute("UPDATE reminders SET status='failed', attempts=3, last_error='boom' WHERE id=?", (r["id"],))
+    db.commit()
+    db.close()
+    page = c.get(f"/invoices/{inv}").get_data(as_text=True)
+    assert '<span class="tag coral">Failed</span> after 3 attempts. Check your email settings' in page and "Error: boom" in page
+    _make_due(inv, "after_due")
+    saved = _with_outbox(_Outbox())
+    try:
+        post(c, f"/invoices/{inv}/remind")
+    finally:
+        payday.smtp_send = saved
+    assert "Sent " in c.get(f"/invoices/{inv}").get_data(as_text=True)
 
 
 if __name__ == "__main__":

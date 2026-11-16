@@ -4,7 +4,7 @@ A late-invoice reminder tool for freelancers. It stores each invoice, will send 
 
 ## Status
 
-Built in six phases. **Phases 1 to 5 are done.** Phase 1 added the database and the invoice pages. Phase 2 added accounts: sign up, sign in, and sign out, with each user seeing only their own invoices. Phase 3 added reminders: records are created and logged automatically. Phase 4 sends them as real email over SMTP, to your own address only. Phase 5 added safety: failed sends retry, and failures show on a dashboard. Polish arrives in Phase 6.
+Built in six phases. **All six phases are done.** Phase 1 added the database and the invoice pages. Phase 2 added accounts: sign up, sign in, and sign out, with each user seeing only their own invoices. Phase 3 added reminders: records are created and logged automatically. Phase 4 sends them as real email over SMTP, to your own address only. Phase 5 added safety: failed sends retry, and failures show on a dashboard. Phase 6 added polish: a settings page, editable reminder text, a manual "Send reminder now", and a Docker setup.
 
 Notes on reminders:
 
@@ -32,6 +32,13 @@ Notes on accounts:
 - Invoices entered in Phase 1 have no owner. The first account created takes them over.
 - Dates use the signed-in user's time zone (default Asia/Kolkata).
 
+Notes on settings and reminder text:
+
+- **Settings** holds your name (it signs each reminder), your time zone (reminders go out at 10:00 there), and the two reminder texts. Changing the time zone moves the pending reminders to 10:00 in the new zone.
+- Each text can use `{client_name}`, `{amount}`, `{currency}` and `{due_date}`. Any other `{word}` is refused when you save. Below each box you see how it reads for an example invoice. Clear a box to go back to the default wording.
+- **Send reminder now** (on an open invoice) sends one straight away, logged like the others, and shown in the invoice's reminder list as "Manual". It uses the "before" wording until the due date has passed, and the "after" wording from then on. A failed manual send is retried like any other.
+- While PayDay is in test mode, every email, manual ones included, goes to your own address and not the client's.
+
 ## Run it
 
 ```bash
@@ -48,3 +55,24 @@ Then open http://localhost:5055. The database is one file, `payday.db`, created 
 .venv/bin/python tests.py
 ```
 
+## Deploy it
+
+PayDay needs one process for the website and one job that sends reminders. The database is a single SQLite file, so run one copy of the app.
+
+```bash
+docker build -t payday .
+docker run -d --name payday -p 8000:8000 -v payday-data:/data \
+  -e SECRET_KEY="$(openssl rand -hex 32)" -e PAYDAY_HTTPS=1 \
+  -e SMTP_HOST=smtp.gmail.com -e SMTP_USER=you@gmail.com -e SMTP_PASSWORD=your-app-password \
+  payday
+```
+
+- Keep `SECRET_KEY` the same between runs, or everyone is signed out on each restart. `PAYDAY_HTTPS=1` marks the session cookie secure; only set it when the site is served over https (put a reverse proxy such as Caddy or nginx in front for that).
+- The database lives in the `payday-data` volume.
+- Send reminders on a schedule, for example with this cron line (every 10 minutes):
+
+```
+*/10 * * * * docker exec payday python app.py send-reminders
+```
+
+Without Docker: `pip install -r requirements.txt`, then `gunicorn --bind 0.0.0.0:8000 --workers 2 app:app`.

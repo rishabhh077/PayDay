@@ -15,7 +15,8 @@ Notes on reminders:
 
 Notes on sending:
 
-- Every message goes to the account owner's own address, never the client's. It is marked "[PayDay test]" and names the client it would have gone to.
+- **Test mode is the default.** Every message goes to the account owner's own address, never the client's. It is marked "[PayDay test]" and names the client it would have gone to.
+- **Sending to clients is opt-in.** Set `PAYDAY_SEND_TO_CLIENTS=1` (only that exact value) and reminders go to each invoice's client email, with the freelancer's address as the reply-to and no test marks. The Settings page shows which mode is on. Before turning it on: check the wording on the Settings page, send yourself a few tests first, and for more than a handful of clients use a domain you own with SPF and DKIM set up at your email provider, so messages do not land in spam. Gmail sends from your Gmail address and has daily sending limits.
 - Set these environment variables: `SMTP_HOST`, `SMTP_PORT` (default 587), `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM` (defaults to `SMTP_USER`), `SMTP_SECURITY` (`starttls` by default, or `ssl`, or `none`). For Gmail use `smtp.gmail.com` and an app password.
 - Due reminders are sent by a background job inside the app when `PAYDAY_SCHEDULER=1` is set (the Docker image sets it). It runs every 10 minutes, or every `PAYDAY_SEND_EVERY_MINUTES`. Without it, run `.venv/bin/python app.py send-reminders` from cron or launchd.
 - If the job was down and a "before due" reminder is found after the due date, it is cancelled with a note instead of sent, since "due in 3 days" would be wrong. The "after due" reminder still goes.

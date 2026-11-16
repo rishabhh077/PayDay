@@ -18,6 +18,7 @@
   <nav aria-label="Main">
     <a href="{{ url_for('dashboard') }}" {% if request.endpoint == 'dashboard' %}aria-current="page"{% endif %}>Dashboard</a>
     <a href="{{ url_for('invoices') }}" {% if request.endpoint in ('invoices', 'invoice') or (request.endpoint == 'invoice_form' and inv) %}aria-current="page"{% endif %}>Invoices</a>
+    <a href="{{ url_for('settings') }}" {% if request.endpoint == 'settings' %}aria-current="page"{% endif %}>Settings</a>
   </nav>
   <a class="cap" href="{{ url_for('invoice_form') }}">New invoice {{ chip("plus") }}</a>
   <form class="signout" method="post" action="{{ url_for('logout') }}">

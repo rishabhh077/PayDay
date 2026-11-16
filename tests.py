@@ -1,4 +1,4 @@
-"""Phase 1 to 6 checks. Run: python tests.py"""
+"""Checks for phases 1 to 6 and Polish 1. Run: python tests.py"""
 import os
 import tempfile
 from datetime import date, timedelta
@@ -115,7 +115,7 @@ def test_login_required():
     for url in ("/", "/dashboard", "/settings", "/invoices", "/invoices/new", "/invoices/1", "/invoices/1/edit"):
         r = c.get(url)
         assert r.status_code == 302 and "/login" in r.headers["Location"], url
-    for url in ("/invoices/new", "/settings", "/invoices/1/paid", "/invoices/1/archive", "/invoices/1/delete", "/invoices/1/remind"):
+    for url in ("/invoices/new", "/settings", "/invoices/1/paid", "/invoices/1/archive", "/invoices/1/delete", "/invoices/1/remind", "/invoices/1/reopen"):
         assert "/login" in post(c, url, **GOOD).headers["Location"], url
     assert c.get("/login").status_code == 200 and c.get("/signup").status_code == 200
 
@@ -150,7 +150,7 @@ def test_users_see_only_their_own_invoices():
     # Every way to reach, change, or remove someone else's invoice is a 404 and changes nothing.
     assert ben.get(f"/invoices/{mine}").status_code == 404
     assert ben.get(f"/invoices/{mine}/edit").status_code == 404
-    for action in ("edit", "paid", "archive", "delete", "remind"):
+    for action in ("edit", "paid", "archive", "delete", "remind", "reopen"):
         assert post(ben, f"/invoices/{mine}/{action}", **{**GOOD, "client_name": "Hacked"}).status_code == 404, action
     row = rows("SELECT * FROM invoices WHERE id=?", mine)[0]
     assert row["client_name"] == "Ann Secret Client" and row["status"] == "open"
@@ -550,6 +550,95 @@ def test_manual_send_rules():
     inv2 = _post_invoice(other, "2099-06-10")
     assert post(c, f"/invoices/{inv2}/remind").status_code == 404  # someone else's invoice
     assert rows("SELECT * FROM reminders WHERE invoice_id=? AND type='manual'", inv2) == []
+
+
+# --- Polish 1: scheduler, late-reminder guard, reopen ---
+
+def test_scheduler_runs_every_round_and_survives_a_failed_run():
+    calls = []
+
+    def flaky():
+        calls.append(1)
+        if len(calls) == 1:
+            raise RuntimeError("database is locked")
+
+    saved = payday.send_due_reminders
+    payday.send_due_reminders = flaky
+    try:
+        payday.scheduler_loop(0, rounds=3)
+    finally:
+        payday.send_due_reminders = saved
+    assert len(calls) == 3  # the first run failed and the loop carried on
+
+
+def test_scheduler_sends_each_reminder_once():
+    c = client("pol1@example.com")
+    inv = _post_invoice(c, "2099-06-10")
+    _make_due(inv)
+    box = _Outbox()
+    saved, real = _with_outbox(box), payday.send_due_reminders
+    payday.send_due_reminders = lambda: real(at=T0)
+    try:
+        payday.scheduler_loop(0, rounds=3)
+    finally:
+        payday.send_due_reminders, payday.smtp_send = real, saved
+    assert len(box.msgs) == 1
+
+
+def test_before_due_is_not_sent_once_the_due_date_has_passed():
+    c = client("pol2@example.com")
+    inv = _post_invoice(c, "2099-06-10")
+    _make_due(inv)  # the job "was down": the before-due time passed long ago
+    box = _Outbox()
+    # 11 Jun 05:30 in Kolkata: the due date (10 Jun) is over. The after-due reminder (11 Jun 10:00) is not yet due.
+    assert _run(box, "2099-06-11T00:00:00+00:00") == (0, 0)
+    r = _reminders(inv)
+    assert box.msgs == [] and r["before_due"]["status"] == "cancelled" and "due date" in r["before_due"]["last_error"]
+    assert r["after_due"]["status"] == "pending"
+    assert "Note: Not sent" in c.get(f"/invoices/{inv}").get_data(as_text=True)
+
+
+def test_before_due_still_sends_on_the_due_date():
+    c = client("pol3@example.com")
+    inv = _post_invoice(c, "2099-06-10")
+    _make_due(inv)
+    assert _run(_Outbox(), "2099-06-10T12:00:00+00:00") == (1, 0)  # 17:30 on the due date in Kolkata
+    assert _reminders(inv)["before_due"]["status"] == "sent"
+
+
+def test_reopen_paid_invoice_restores_reminders():
+    c = client("pol4@example.com")
+    inv = _post_invoice(c, "2099-06-10")
+    post(c, f"/invoices/{inv}/paid")
+    assert _reminders(inv)["before_due"]["status"] == "cancelled"
+    assert "Reopen invoice" in c.get(f"/invoices/{inv}").get_data(as_text=True)
+    assert post(c, f"/invoices/{inv}/reopen").status_code == 302
+    row = rows("SELECT * FROM invoices WHERE id=?", inv)[0]
+    assert row["status"] == "open" and row["paid_on"] is None
+    assert _reminders(inv)["before_due"]["status"] == "pending" and _reminders(inv)["after_due"]["status"] == "pending"
+    assert post(c, f"/invoices/{inv}/reopen").status_code == 400  # already open
+    assert post(c, f"/invoices/{inv}/edit", **{**GOOD, "client_name": "Edited"}).status_code == 302  # editable again
+
+
+def test_reopen_archived_keeps_sent_reminders_sent():
+    c = client("pol5@example.com")
+    inv = _post_invoice(c, "2099-06-10")
+    _make_due(inv)
+    _run(_Outbox(), T0)
+    post(c, f"/invoices/{inv}/archive")
+    post(c, f"/invoices/{inv}/reopen")
+    assert rows("SELECT status FROM invoices WHERE id=?", inv)[0][0] == "open"
+    r = _reminders(inv)
+    assert r["before_due"]["status"] == "sent" and r["after_due"]["status"] == "pending"
+    assert _run(_Outbox(), T0) == (0, 0)  # the sent one is never sent again
+
+
+def test_reopen_is_private():
+    ann, ben = client("pol6@example.com"), client("pol7@example.com")
+    inv = _post_invoice(ann, "2099-06-10")
+    post(ann, f"/invoices/{inv}/paid")
+    assert post(ben, f"/invoices/{inv}/reopen").status_code == 404
+    assert rows("SELECT status FROM invoices WHERE id=?", inv)[0][0] == "paid"
 
 
 if __name__ == "__main__":

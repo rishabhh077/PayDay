@@ -42,7 +42,7 @@
     {%- elif r.status == "sent" %} (sent)
     {%- else %} (failed after {{ r.attempts }} attempts){% endif %}
     {%- if r.status == "sent" and r.sent_at %}, {{ r.sent_at|local }}{% endif %}
-    {%- if r.last_error %}<br><small>Error: {{ r.last_error }}</small>{% endif %}</dd>
+    {%- if r.last_error %}<br><small>{{ "Note" if r.status == "cancelled" else "Error" }}: {{ r.last_error }}</small>{% endif %}</dd>
   {% endfor %}
 </dl>
 {% else %}
@@ -65,6 +65,12 @@
     <button class="cap">Send reminder now {{ chip() }}</button>
   </form>
   <a class="cap sky" href="{{ url_for('invoice_form', invoice_id=inv.id) }}">Edit {{ chip() }}</a>
+  {% endif %}
+  {% if inv.status != "open" %}
+  <form method="post" action="{{ url_for('reopen', invoice_id=inv.id) }}">
+    {{ csrf_field() }}
+    <button class="cap">Reopen invoice {{ chip("back") }}</button>
+  </form>
   {% endif %}
   {% if inv.status != "archived" %}
   <form method="post" action="{{ url_for('archive', invoice_id=inv.id) }}">

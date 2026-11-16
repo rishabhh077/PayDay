@@ -36,10 +36,11 @@
   {% for r in reminders %}
   <dt>{{ "Before due date" if r.type == "before_due" else "After due date" if r.type == "after_due" else "Manual" }}</dt>
   <dd>{{ r.scheduled_for|local }}
-    {%- if r.status == "pending" %} (scheduled, not sent yet)
+    {%- if r.status == "pending" and r.attempts %} (attempt {{ r.attempts }} failed, trying again)
+    {%- elif r.status == "pending" %} (scheduled, not sent yet)
     {%- elif r.status == "cancelled" %} (cancelled)
     {%- elif r.status == "sent" %} (sent)
-    {%- else %} (failed){% endif %}
+    {%- else %} (failed after {{ r.attempts }} attempts){% endif %}
     {%- if r.status == "sent" and r.sent_at %}, {{ r.sent_at|local }}{% endif %}
     {%- if r.last_error %}<br><small>Error: {{ r.last_error }}</small>{% endif %}</dd>
   {% endfor %}

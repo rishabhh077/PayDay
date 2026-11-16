@@ -1,4 +1,4 @@
-"""Phase 1 to 4 checks. Run: python tests.py"""
+"""Phase 1 to 5 checks. Run: python tests.py"""
 import os
 import tempfile
 from datetime import date, timedelta
@@ -112,7 +112,7 @@ def test_signup_and_login():
 
 def test_login_required():
     c = anon()
-    for url in ("/", "/invoices", "/invoices/new", "/invoices/1", "/invoices/1/edit"):
+    for url in ("/", "/dashboard", "/invoices", "/invoices/new", "/invoices/1", "/invoices/1/edit"):
         r = c.get(url)
         assert r.status_code == 302 and "/login" in r.headers["Location"], url
     for url in ("/invoices/new", "/invoices/1/paid", "/invoices/1/archive", "/invoices/1/delete"):
@@ -300,18 +300,78 @@ def test_paid_invoice_is_not_sent():
     assert box.msgs == []
 
 
-def test_failed_send_is_recorded_and_visible():
-    c = client("send3@example.com")
-    inv = _post_invoice(c, "2099-06-10")
-    _make_due(inv)
-    saved = _with_outbox(_Outbox(fail=True))
+# --- Phase 5: safety ---
+
+T0 = "2001-01-01T00:00:00+00:00"
+
+
+def _at(hours):
+    from datetime import datetime, timedelta
+    return (datetime.fromisoformat(T0) + timedelta(hours=hours)).isoformat(timespec="seconds")
+
+
+def _run(box, at):
+    saved = _with_outbox(box)
     try:
-        assert payday.send_due_reminders() == (0, 1)
+        return payday.send_due_reminders(at=at)
     finally:
         payday.smtp_send = saved
+
+
+def test_failed_send_retries_hourly_then_fails_and_shows_on_dashboard():
+    c = client("safe1@example.com")
+    inv = _post_invoice(c, "2099-06-10")
+    _make_due(inv)
+    bad = _Outbox(fail=True)
+    assert _run(bad, T0) == (0, 1)
     r = _reminders(inv)["before_due"]
-    assert r["status"] == "failed" and r["last_error"] == "boom" and r["sent_at"] is None
-    assert "boom" in c.get(f"/invoices/{inv}").get_data(as_text=True)
+    assert r["status"] == "pending" and r["attempts"] == 1 and r["scheduled_for"] == _at(1) and r["last_error"] == "boom"
+    assert "attempt 1 failed, trying again" in c.get(f"/invoices/{inv}").get_data(as_text=True)
+    assert "did not send" not in c.get("/dashboard").get_data(as_text=True)  # still retrying, not failed
+    assert _run(bad, _at(0.5)) == (0, 0)  # too early: an hour has not passed
+    assert _run(bad, _at(1)) == (0, 1) and _reminders(inv)["before_due"]["attempts"] == 2
+    assert _run(bad, _at(2)) == (0, 1)  # third and last try
+    r = _reminders(inv)["before_due"]
+    assert r["status"] == "failed" and r["attempts"] == 3 and r["sent_at"] is None
+    assert _run(bad, _at(9)) == (0, 0)  # never a fourth try
+    page = c.get("/dashboard").get_data(as_text=True)
+    assert "did not send" in page and "Failed after 3 attempts" in page and "boom" in page
+    assert "failed after 3 attempts" in c.get(f"/invoices/{inv}").get_data(as_text=True)
+    assert "Failed after 3 attempts" not in client("safe2@example.com").get("/dashboard").get_data(as_text=True)  # other users never see it
+
+
+def test_retry_that_works_sends_once():
+    c = client("safe3@example.com")
+    inv = _post_invoice(c, "2099-06-10")
+    _make_due(inv)
+    assert _run(_Outbox(fail=True), T0) == (0, 1)
+    good = _Outbox()
+    assert _run(good, _at(1)) == (1, 0)
+    assert _run(good, _at(2)) == (0, 0)  # run twice, no duplicate
+    assert len(good.msgs) == 1
+    r = _reminders(inv)["before_due"]
+    assert r["status"] == "sent" and r["attempts"] == 2 and r["last_error"] is None
+
+
+def test_paid_invoice_stops_retries():
+    c = client("safe4@example.com")
+    inv = _post_invoice(c, "2099-06-10")
+    _make_due(inv)
+    assert _run(_Outbox(fail=True), T0) == (0, 1)
+    post(c, f"/invoices/{inv}/paid")
+    assert _run(_Outbox(), _at(1)) == (0, 0)
+    assert _reminders(inv)["before_due"]["status"] == "cancelled"
+
+
+def test_dashboard_totals_and_overdue():
+    c = client("safe5@example.com")
+    assert "Nothing is waiting" in c.get("/dashboard").get_data(as_text=True)
+    post(c, "/invoices/new", **{**GOOD, "client_name": "Late Co", "due_date": "2020-01-10", "amount": "100"})
+    post(c, "/invoices/new", **{**GOOD, "client_name": "Fine Co", "due_date": "2099-01-10", "amount": "50"})
+    page = c.get("/dashboard").get_data(as_text=True)
+    assert "INR 150.00</span> across 2" in page and "INR 100.00</span> is late" in page and "Late Co" in page and "Fine Co" not in page
+    assert c.get("/").status_code == 302 and c.get("/").headers["Location"].endswith("/dashboard")
+    assert anon().get("/dashboard").status_code == 302
 
 
 def test_sent_invoice_is_archived_not_deleted():

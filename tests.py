@@ -3,6 +3,7 @@ import os
 import tempfile
 from datetime import date, timedelta
 
+os.environ.pop("PAYDAY_SEND_TO_CLIENTS", None)  # tests start in test mode
 os.environ["PAYDAY_DB"] = os.path.join(tempfile.mkdtemp(), "test.db")
 import app as payday  # noqa: E402
 
@@ -639,6 +640,47 @@ def test_reopen_is_private():
     post(ann, f"/invoices/{inv}/paid")
     assert post(ben, f"/invoices/{inv}/reopen").status_code == 404
     assert rows("SELECT status FROM invoices WHERE id=?", inv)[0][0] == "paid"
+
+
+# --- Polish 2: sending to clients is opt-in ---
+
+def test_test_mode_is_the_default_and_message_has_date_and_id():
+    c = client("live1@example.com")
+    msg = _sent_text(c, _post_invoice(c, "2099-06-10"))
+    assert msg["To"] == "live1@example.com" and msg["Subject"].startswith("[PayDay test]")
+    assert msg["Date"] and msg["Message-ID"] and msg["Reply-To"] is None
+    assert "Test mode" in c.get("/settings").get_data(as_text=True)
+
+
+def test_live_mode_sends_to_the_client_with_reply_to_and_no_test_marks():
+    os.environ["PAYDAY_SEND_TO_CLIENTS"] = "1"
+    try:
+        c = client("live2@example.com")
+        post(c, "/settings", **{**SETTINGS, "name": "Prithvi"})
+        inv = _post_invoice(c, "2099-06-10")
+        msg = _sent_text(c, inv)
+        body = msg.get_content()
+        assert msg["To"] == "kavya@example.com"  # the invoice's client, not the owner
+        assert msg["Reply-To"] == "live2@example.com"
+        assert "[PayDay" not in msg["Subject"] and "PayDay test" not in body and "would be sent" not in body
+        assert "Hi Rem," in body and body.rstrip().endswith("Thanks,\nPrithvi")
+        assert "Reminders go to your clients" in c.get("/settings").get_data(as_text=True)
+        box = _Outbox()
+        saved = _with_outbox(box)
+        try:
+            page = c.get(post(c, f"/invoices/{inv}/remind").headers["Location"]).get_data(as_text=True)
+        finally:
+            payday.smtp_send = saved
+        assert "Reminder sent to kavya@example.com" in page and box.msgs[0]["To"] == "kavya@example.com"
+    finally:
+        os.environ.pop("PAYDAY_SEND_TO_CLIENTS", None)
+
+
+def test_only_the_value_1_turns_live_mode_on():
+    for v in ("0", "true", "yes", ""):
+        os.environ["PAYDAY_SEND_TO_CLIENTS"] = v
+        assert payday.live_mode() is False, v
+    os.environ.pop("PAYDAY_SEND_TO_CLIENTS", None)
 
 
 if __name__ == "__main__":

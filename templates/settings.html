@@ -30,6 +30,7 @@
 
 <form class="sheet form" method="post" novalidate>
   {{ csrf_field() }}
+  <p class="hint">{% if live %}Reminders go to your clients' email addresses, with your address as the reply-to.{% else %}Test mode: every reminder goes to your own address only, never to the client.{% endif %}</p>
   {{ field("name", "Your name", hint="Signs each reminder", attrs='autocomplete="name" maxlength="100"') }}
   <div class="field">
     <label for="time_zone">Time zone <span class="hint">Reminders go out at 10:00 here</span></label>

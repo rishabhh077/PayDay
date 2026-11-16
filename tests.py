@@ -683,6 +683,68 @@ def test_only_the_value_1_turns_live_mode_on():
     os.environ.pop("PAYDAY_SEND_TO_CLIENTS", None)
 
 
+# --- Polish 3: one log row per send attempt ---
+
+def _attempts(inv):
+    return rows("SELECT a.*, r.type FROM reminder_attempts a JOIN reminders r ON r.id=a.reminder_id "
+                "WHERE r.invoice_id=? ORDER BY a.id", inv)
+
+
+def test_every_attempt_is_logged_with_time_address_and_result():
+    c = client("log1@example.com")
+    inv = _post_invoice(c, "2099-06-10")
+    assert _attempts(inv) == []
+    _make_due(inv)
+    bad = _Outbox(fail=True)
+    _run(bad, T0)
+    _run(bad, _at(1))
+    _run(_Outbox(), _at(2))
+    log = _attempts(inv)
+    assert [a["result"] for a in log] == ["failed", "failed", "sent"]
+    assert [a["attempted_at"] for a in log] == [_at(0), _at(1), _at(2)]
+    assert [a["error"] for a in log] == ["boom", "boom", None]
+    assert {a["type"] for a in log} == {"before_due"}
+    assert log[2]["to_address"] == "log1@example.com"  # test mode: the owner's own address
+    page = c.get(f"/invoices/{inv}").get_data(as_text=True)
+    assert "Send history" in page and page.count("Before due date: ") == 3 and "sent to log1@example.com" in page
+    assert "<small>boom</small>" in page
+
+
+def test_manual_send_and_a_sent_reminder_are_logged_once_each():
+    c = client("log2@example.com")
+    inv = _post_invoice(c, "2099-06-10")
+    saved = _with_outbox(_Outbox())
+    try:
+        post(c, f"/invoices/{inv}/remind")
+    finally:
+        payday.smtp_send = saved
+    log = _attempts(inv)
+    assert len(log) == 1 and log[0]["type"] == "manual" and log[0]["result"] == "sent"
+    _make_due(inv)
+    _run(_Outbox(), T0)
+    _run(_Outbox(), _at(1))  # the sent reminder is not sent, so not logged, again
+    assert len(_attempts(inv)) == 2
+
+
+def test_nothing_is_logged_for_a_skipped_or_cancelled_reminder():
+    c = client("log3@example.com")
+    inv = _post_invoice(c, "2099-06-10")
+    _make_due(inv)
+    _run(_Outbox(), "2099-06-11T00:00:00+00:00")  # late guard cancels the before-due reminder
+    assert _attempts(inv) == []
+    assert "Send history" not in c.get(f"/invoices/{inv}").get_data(as_text=True)
+
+
+def test_history_goes_away_with_the_invoice():
+    c = client("log4@example.com")
+    inv = _post_invoice(c, "2099-06-10")
+    _make_due(inv)
+    _run(_Outbox(fail=True), T0)  # a failed attempt only, so the invoice can still be deleted
+    assert len(_attempts(inv)) == 1
+    post(c, f"/invoices/{inv}/delete")
+    assert rows("SELECT * FROM invoices WHERE id=?", inv) == [] and _attempts(inv) == []
+
+
 if __name__ == "__main__":
     for name, fn in list(globals().items()):
         if name.startswith("test_"):

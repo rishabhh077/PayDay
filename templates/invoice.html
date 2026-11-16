@@ -50,6 +50,20 @@
 {% endif %}
 </div>
 
+{% if history %}
+<div class="sheet">
+<h2>Send history</h2>
+<dl class="facts">
+  {% for a in history %}
+  <dt>{{ a.attempted_at|local }}</dt>
+  <dd>{{ "Before due date" if a.type == "before_due" else "After due date" if a.type == "after_due" else "Manual" }}:
+    {%- if a.result == "sent" %} sent to {{ a.to_address }}
+    {%- else %} failed{% if a.to_address %} sending to {{ a.to_address }}{% endif %}<br><small>{{ a.error }}</small>{% endif %}</dd>
+  {% endfor %}
+</dl>
+</div>
+{% endif %}
+
 <div class="actions">
   {% if inv.status == "open" %}
   <form class="pay" method="post" action="{{ url_for('mark_paid', invoice_id=inv.id) }}">

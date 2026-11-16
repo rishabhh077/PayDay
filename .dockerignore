@@ -1,0 +1,7 @@
+.venv/
+.git/
+.impeccable/
+.claude/
+__pycache__/
+*.db
+.secret_key

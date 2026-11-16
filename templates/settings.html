@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% from "_ui.html" import chip, land %}
+{% block title %}Settings{% endblock %}
+
+{% macro field(name, label, hint="", attrs="") %}
+<div class="field">
+  <label for="{{ name }}">{{ label }}{% if hint %} <span class="hint">{{ hint }}</span>{% endif %}</label>
+  <input type="text" id="{{ name }}" name="{{ name }}" value="{{ v.get(name, '') }}" {{ attrs|safe }}
+    {% if errors.get(name) %}aria-invalid="true" aria-describedby="{{ name }}-error"{% endif %}>
+  {% if errors.get(name) %}<p class="error" id="{{ name }}-error">{{ errors[name] }}</p>{% endif %}
+</div>
+{% endmacro %}
+
+{% macro text(kind, label) %}
+<div class="field">
+  <label for="{{ kind }}">{{ label }}</label>
+  <textarea id="{{ kind }}" name="{{ kind }}" maxlength="2000"
+    {% if errors.get(kind) %}aria-invalid="true" aria-describedby="{{ kind }}-error"{% endif %}>{{ v[kind] }}</textarea>
+  {% if errors.get(kind) %}<p class="error" id="{{ kind }}-error">{{ errors[kind] }}</p>{% endif %}
+  <p class="preview-label">How it reads now, with an example invoice:</p>
+  <p class="preview">{{ previews[kind] }}</p>
+</div>
+{% endmacro %}
+
+{% block main %}
+{% call land("form") %}
+<h1>Settings</h1>
+<p class="lede">Your name and time zone go on every reminder. You can change what the reminders say.</p>
+{% endcall %}
+
+<form class="sheet form" method="post" novalidate>
+  {{ csrf_field() }}
+  {{ field("name", "Your name", hint="Signs each reminder", attrs='autocomplete="name" maxlength="100"') }}
+  <div class="field">
+    <label for="time_zone">Time zone <span class="hint">Reminders go out at 10:00 here</span></label>
+    <input type="text" id="time_zone" name="time_zone" list="zones" value="{{ v.time_zone }}" autocomplete="off"
+      {% if errors.get('time_zone') %}aria-invalid="true" aria-describedby="time_zone-error"{% endif %}>
+    <datalist id="zones">{% for z in zones %}<option value="{{ z }}">{% endfor %}</datalist>
+    {% if errors.get('time_zone') %}<p class="error" id="time_zone-error">{{ errors['time_zone'] }}</p>{% endif %}
+  </div>
+  <p class="hint">In these texts you can use {% for n in variables %}<code>{{ '{' ~ n ~ '}' }}</code>{{ ", " if not loop.last }}{% endfor %}. Clear a box to go back to the default text.</p>
+  {{ text("before_due", "Reminder 3 days before the due date") }}
+  {{ text("after_due", "Reminder 1 day after the due date") }}
+  <div class="actions">
+    <button class="cap">Save settings {{ chip("check") }}</button>
+  </div>
+</form>
+{% endblock %}

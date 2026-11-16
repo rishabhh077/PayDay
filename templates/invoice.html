@@ -60,6 +60,10 @@
     </div>
     <button class="cap land">Mark as paid {{ chip("check") }}</button>
   </form>
+  <form method="post" action="{{ url_for('remind', invoice_id=inv.id) }}">
+    {{ csrf_field() }}
+    <button class="cap">Send reminder now {{ chip() }}</button>
+  </form>
   <a class="cap sky" href="{{ url_for('invoice_form', invoice_id=inv.id) }}">Edit {{ chip() }}</a>
   {% endif %}
   {% if inv.status != "archived" %}

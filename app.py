@@ -1,4 +1,4 @@
-"""PayDay, Phase 5: safety. Failed sends retry up to 3 times, an hour apart; failures show on the dashboard."""
+"""PayDay, Phase 6: polish. Settings, editable reminder text, manual send, and deployment."""
 import logging
 import os
 import re
@@ -9,7 +9,7 @@ import sys
 from email.message import EmailMessage
 from datetime import date, datetime, time, timedelta, timezone
 from decimal import Decimal, InvalidOperation
-from zoneinfo import ZoneInfo
+from zoneinfo import ZoneInfo, available_timezones
 
 from flask import Flask, abort, flash, g, redirect, render_template, request, session, url_for
 from markupsafe import Markup
@@ -30,6 +30,7 @@ def _secret_key():
 
 app.secret_key = os.environ.get("SECRET_KEY") or _secret_key()
 app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+app.config["SESSION_COOKIE_SECURE"] = os.environ.get("PAYDAY_HTTPS") == "1"  # set when served over https
 log = logging.getLogger("payday.reminders")
 log.setLevel(logging.INFO)
 if not log.handlers:
@@ -69,12 +70,15 @@ def now():
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
-def user_tz():
-    name = g.user["time_zone"] if g.get("user") else "Asia/Kolkata"
+def tz_of(user):
     try:
-        return ZoneInfo(name)
+        return ZoneInfo(user["time_zone"] if user else "Asia/Kolkata")
     except Exception:
         return ZoneInfo("UTC")
+
+
+def user_tz():
+    return tz_of(g.get("user"))
 
 
 def today():
@@ -301,25 +305,48 @@ def money_text(minor):
     return f"{Decimal(minor) / 100:,.2f}"
 
 
-def build_message(user, inv, kind):
+TEMPLATE_KINDS = ("before_due", "after_due")
+VARIABLES = ("client_name", "amount", "currency", "due_date")
+DEFAULT_TEMPLATES = {
+    "before_due": ("Hi {client_name},\n\nA friendly reminder that my invoice of {currency} {amount} is due on "
+                   "{due_date}.\n\nIf it is already on its way, thank you, and please ignore this note."),
+    "after_due": ("Hi {client_name},\n\nMy invoice of {currency} {amount} was due on {due_date} and I have not yet "
+                  "seen the payment.\n\nCould you let me know when to expect it? If you have already paid, thank "
+                  "you, and please ignore this note."),
+}
+
+
+def fill(body, client_name, amount, currency, due_date):
+    """Swap the four {variables} in one pass, so a client named "{amount}" cannot inject text."""
+    vals = {"client_name": client_name, "amount": amount, "currency": currency, "due_date": due_date}
+    return re.sub(r"\{(\w+)\}", lambda m: vals.get(m.group(1), m.group(0)), body)
+
+
+def template_body(db, user_id, kind):
+    row = db.execute("SELECT body FROM templates WHERE user_id=? AND type=?", (user_id, kind)).fetchone()
+    return row["body"] if row else DEFAULT_TEMPLATES[kind]
+
+
+def template_kind(reminder_type, inv, user):
+    """Which text a reminder uses. A manual reminder uses whichever fits the invoice right now."""
+    if reminder_type != "manual":
+        return reminder_type
+    today_local = datetime.now(tz_of(user)).date().isoformat()
+    return "before_due" if inv["due_date"] >= today_local else "after_due"
+
+
+def build_message(user, inv, kind, body=None):
     due = date.fromisoformat(inv["due_date"]).strftime("%d %b %Y")
-    amount = f"{inv['currency']} {money_text(inv['amount'])}"
-    what = f" for {inv['description']}" if inv["description"] else ""
-    if kind == "before_due":
-        subject = f"Reminder: invoice of {amount} is due on {due}"
-        text = (f"Hi {inv['client_name']},\n\nA friendly reminder that my invoice of {amount}{what} "
-                f"is due on {due}.\n\nIf it is already on its way, thank you, and please ignore this note.\n")
-    else:
-        subject = f"Invoice of {amount} was due on {due}"
-        text = (f"Hi {inv['client_name']},\n\nMy invoice of {amount}{what} was due on {due} and I "
-                f"have not yet seen the payment.\n\nCould you let me know when to expect it? If you have "
-                f"already paid, thank you, and please ignore this note.\n")
+    amount = money_text(inv["amount"])
+    subject = (f"Reminder: invoice of {inv['currency']} {amount} is due on {due}" if kind == "before_due"
+               else f"Invoice of {inv['currency']} {amount} was due on {due}")
+    text = fill(body or DEFAULT_TEMPLATES[kind], inv["client_name"], amount, inv["currency"], due)
     sign = user["name"] or user["email"]
     msg = EmailMessage()
     msg["To"] = user["email"]  # own address only
     msg["Subject"] = f"[PayDay test] {subject}"
     msg.set_content(f"PayDay test copy. This would be sent to {inv['client_name']} <{inv['client_email']}>. "
-                    f"It was sent to you only.\n\n----\n\n{text}\nThanks,\n{sign}\n")
+                    f"It was sent to you only.\n\n----\n\n{text}\n\nThanks,\n{sign}\n")
     return msg
 
 
@@ -349,10 +376,11 @@ MAX_ATTEMPTS = 3  # R6: the first try plus two retries
 RETRY_DELAY = timedelta(hours=1)
 
 
-def send_due_reminders(db=None, at=None):
+def send_due_reminders(db=None, at=None, only_id=None):
     """Send every pending reminder whose time has come. Returns (sent, failed attempts).
 
-    A failed attempt is retried an hour later until MAX_ATTEMPTS, then marked failed. `at` is for tests."""
+    A failed attempt is retried an hour later until MAX_ATTEMPTS, then marked failed. `at` is for tests;
+    `only_id` sends just that one reminder (used by the manual send)."""
     t = at or now()
     own = db is None
     db = db or connect()
@@ -360,7 +388,8 @@ def send_due_reminders(db=None, at=None):
     try:
         due = db.execute(
             "SELECT r.id, r.type, r.attempts, r.invoice_id FROM reminders r JOIN invoices i ON i.id=r.invoice_id "
-            "WHERE r.status='pending' AND i.status='open' AND r.scheduled_for <= ? ORDER BY r.scheduled_for", (t,)).fetchall()
+            "WHERE r.status='pending' AND i.status='open' AND r.scheduled_for <= ? AND (? IS NULL OR r.id = ?) "
+            "ORDER BY r.scheduled_for", (t, only_id, only_id)).fetchall()
         for r in due:
             # Claim the row first, so two overlapping runs cannot both send it.
             claimed = db.execute("UPDATE reminders SET attempts=attempts+1 WHERE id=? AND status='pending' AND attempts=?",
@@ -373,7 +402,8 @@ def send_due_reminders(db=None, at=None):
             try:
                 if not user:
                     raise SendError("Invoice has no owner.")
-                smtp_send(build_message(user, inv, r["type"]))
+                kind = template_kind(r["type"], inv, user)
+                smtp_send(build_message(user, inv, kind, template_body(db, user["id"], kind)))
             except Exception as e:  # noqa: BLE001 - any failure must be recorded, never crash the run
                 tries = r["attempts"] + 1  # the claim above already counted this attempt
                 if tries >= MAX_ATTEMPTS:
@@ -540,6 +570,68 @@ def delete(invoice_id):
     db.commit()
     flash("Invoice deleted.")
     return redirect(url_for("invoices"))
+
+
+@app.post("/invoices/<int:invoice_id>/remind")
+def remind(invoice_id):
+    """R7: send a reminder now. Logged and retried like any other."""
+    if get_invoice(invoice_id)["status"] != "open":
+        abort(400)
+    db, t = get_db(), now()
+    rid = db.execute("INSERT INTO reminders (invoice_id, type, scheduled_for, created_at) VALUES (?, 'manual', ?, ?)",
+                     (invoice_id, t, t)).lastrowid
+    db.commit()
+    send_due_reminders(db, only_id=rid)
+    row = db.execute("SELECT status, last_error FROM reminders WHERE id=?", (rid,)).fetchone()
+    if row["status"] == "sent":
+        flash("Reminder sent. While PayDay is in test mode it goes to your own address, not the client's.")
+    else:
+        flash(f"The reminder did not send: {row['last_error']} PayDay will try again in an hour.")
+    return redirect(url_for("invoice", invoice_id=invoice_id))
+
+
+SAMPLE = ("Kavya Rao", "48,000.00", "INR", "20 Nov 2026")  # what the settings preview fills in
+
+
+@app.route("/settings", methods=["GET", "POST"])
+def settings():
+    db, u = get_db(), g.user
+    errors = {}
+    if request.method == "POST":
+        v = {"name": request.form.get("name", "").strip(), "time_zone": request.form.get("time_zone", "").strip()}
+        for kind in TEMPLATE_KINDS:
+            v[kind] = request.form.get(kind, "").replace("\r\n", "\n").strip()
+        if len(v["name"]) > 100:
+            errors["name"] = "Keep your name under 100 characters."
+        if v["time_zone"] not in available_timezones():
+            errors["time_zone"] = "Choose a time zone from the list, like Asia/Kolkata."
+        for kind in TEMPLATE_KINDS:
+            unknown = sorted(set(re.findall(r"\{(\w+)\}", v[kind])) - set(VARIABLES))
+            if len(v[kind]) > 2000:
+                errors[kind] = "Keep this under 2000 characters."
+            elif unknown:
+                errors[kind] = (f"{', '.join('{' + n + '}' for n in unknown)} is not a variable. "
+                                f"Use {', '.join('{' + n + '}' for n in VARIABLES)}.")
+        if not errors:
+            db.execute("UPDATE users SET name=?, time_zone=? WHERE id=?", (v["name"], v["time_zone"], u["id"]))
+            for kind in TEMPLATE_KINDS:
+                if not v[kind] or v[kind] == DEFAULT_TEMPLATES[kind]:  # empty means "use the default"
+                    db.execute("DELETE FROM templates WHERE user_id=? AND type=?", (u["id"], kind))
+                else:
+                    db.execute("INSERT INTO templates (user_id, type, body) VALUES (?,?,?) "
+                               "ON CONFLICT(user_id, type) DO UPDATE SET body=excluded.body", (u["id"], kind, v[kind]))
+            if v["time_zone"] != u["time_zone"]:  # 10:00 means a different moment now
+                for inv in db.execute("SELECT id, due_date FROM invoices WHERE user_id=? AND status='open'", (u["id"],)).fetchall():
+                    sync_reminders(db, inv["id"], inv["due_date"], ZoneInfo(v["time_zone"]))
+            db.commit()
+            flash("Settings saved.")
+            return redirect(url_for("settings"))
+    else:
+        v = {"name": u["name"], "time_zone": u["time_zone"], **{k: template_body(db, u["id"], k) for k in TEMPLATE_KINDS}}
+    shown = {k: v[k] or DEFAULT_TEMPLATES[k] for k in TEMPLATE_KINDS}
+    previews = {k: fill(shown[k], *SAMPLE) for k in TEMPLATE_KINDS}
+    return render_template("settings.html", v=v, errors=errors, previews=previews, zones=sorted(available_timezones()),
+                           variables=VARIABLES), 400 if errors else 200
 
 
 init_db()

@@ -16,7 +16,7 @@
 <dl class="facts">
   <dt>Status</dt>
   <dd>
-    {%- if inv.status == "open" and inv.days < 0 %}Overdue, {{ when(inv.days)|lower }}
+    {%- if inv.status == "open" and inv.days < 0 %}<span class="tag coral">Overdue</span> {{ when(inv.days)|lower }}
     {%- elif inv.status == "open" %}Open, {{ when(inv.days)|lower }}
     {%- elif inv.status == "paid" %}Paid
     {%- else %}Archived{% endif -%}
@@ -35,13 +35,13 @@
 <dl class="facts">
   {% for r in reminders %}
   <dt>{{ "Before due date" if r.type == "before_due" else "After due date" if r.type == "after_due" else "Manual" }}</dt>
-  <dd>{{ r.scheduled_for|local }}
-    {%- if r.status == "pending" and r.attempts %} (attempt {{ r.attempts }} failed, trying again)
-    {%- elif r.status == "pending" %} (scheduled, not sent yet)
-    {%- elif r.status == "cancelled" %} (cancelled)
-    {%- elif r.status == "sent" %} (sent)
-    {%- else %} (failed after {{ r.attempts }} attempts){% endif %}
-    {%- if r.status == "sent" and r.sent_at %}, {{ r.sent_at|local }}{% endif %}
+  <dd>
+    {%- if r.status == "sent" %}Sent {{ (r.sent_at or r.scheduled_for)|local }}
+    {%- elif r.status == "pending" and r.attempts %}Attempt {{ r.attempts }} failed, trying again at {{ r.scheduled_for|local }}
+    {%- elif r.status == "pending" and r.scheduled_for <= now_iso %}Due now, goes out at the next run
+    {%- elif r.status == "pending" %}Scheduled for {{ r.scheduled_for|local }}
+    {%- elif r.status == "cancelled" %}Cancelled, was scheduled for {{ r.scheduled_for|local }}
+    {%- else %}<span class="tag coral">Failed</span> after {{ r.attempts }} attempts. Check your email settings, then use Send reminder now.{% endif %}
     {%- if r.last_error %}<br><small>{{ "Note" if r.status == "cancelled" else "Error" }}: {{ r.last_error }}</small>{% endif %}</dd>
   {% endfor %}
 </dl>

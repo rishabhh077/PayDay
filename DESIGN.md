@@ -53,6 +53,9 @@ spacing:
   cell: "20px"
   section: "48px"
   headland-gap: "120px"
+  sheet-gap: "24px"
+  tabs-gap: "28px"
+  field-gap: "22px"
 components:
   capsule:
     backgroundColor: "{colors.sun}"
@@ -109,6 +112,18 @@ components:
     backgroundColor: "{colors.sheet}"
     textColor: "{colors.ink}"
     rounded: "{rounded.sheet}"
+  testmode:
+    backgroundColor: "{colors.sheet}"
+    textColor: "{colors.ink}"
+    rounded: "12px"
+    padding: "6px 16px"
+  textarea:
+    backgroundColor: "{colors.sheet}"
+    textColor: "{colors.ink}"
+    typography: "{typography.body}"
+    rounded: "{rounded.field}"
+    padding: "10px 16px"
+    height: "15rem"
   input:
     backgroundColor: "{colors.sheet}"
     textColor: "{colors.ink}"
@@ -124,7 +139,7 @@ components:
 
 **Creative North Star: "The Guide Map"**
 
-PayDay is drawn like the fold-out map handed over at a garden gate: cream water, one green headland, and a handful of flat-colour markers that say where to go next. The system grew from the catalog world Gardens Guide Map (`aww2-zoo-gardens-guide-map`). Every page opens on the headland, a single organic green lobe whose coast leaves the frame at the top and left. The page heading and one plain sentence sit on that land; the working data sits below it on white sheets.
+PayDay is drawn like the fold-out map handed over at a garden gate: cream water, one green headland, and a handful of flat-colour markers that say where to go next. The system grew from the catalog world Gardens Guide Map (`aww2-zoo-gardens-guide-map`). Every page, signed in or out, opens on the headland, a single organic green lobe whose coast leaves the frame at the top and left. The page heading and one plain sentence sit on that land; the working data sits below it on white sheets. Pages: Dashboard, Invoices (three status tabs), invoice detail, invoice form, Settings, Sign in, Create account.
 
 Colour is flat. There are no gradients, no shadows, and no textures. Hierarchy comes from size alone, because the one typeface is set at one weight throughout. Controls are capsules, and the ones that act carry a round ink chip that slides on hover with a small overshoot. That slide is the system's only motion gesture.
 
@@ -149,7 +164,7 @@ A cream ground, one land green, near-black ink, and four flat marker colours use
 - **Sun Yellow** (`sun`): the default capsule and tag fill, so the main action on any screen (New invoice, Save invoice). Also the text-selection colour, and the row hover wash at 16% opacity.
 
 ### Tertiary
-- **Coral** (`coral`): overdue and destructive. The Overdue count tag and the confirmed Delete capsule.
+- **Coral** (`coral`): exceptions and destruction. The count tags on Overdue and "Reminders that did not send", the "Overdue" and "Failed" tags on the invoice page, and the confirmed Delete capsule.
 - **Sky Blue** (`sky`): the Edit capsule.
 - **Lilac** (`lilac`): the Archive capsule.
 
@@ -166,6 +181,8 @@ A cream ground, one land green, near-black ink, and four flat marker colours use
 **The Ink On Colour Rule.** Text on any marker colour, on the land, and on the sun is always Ink. Marker colours are fills; they are never used as text colours.
 
 **The One Meaning Rule.** Each marker colour holds one job: sun acts, land settles, sky edits, lilac archives, coral warns. A new action picks the nearest existing meaning before a new colour is added.
+
+**The Flag Rule.** Coral flags exceptions only: count tags on the Overdue and failed-reminder sections, an "Overdue" tag and a "Failed" tag on the invoice page. Open, Paid, and Archived status are plain words in Ink. There are no per-row status pills; a table row that is late is already under an Overdue heading.
 
 ## Typography
 
@@ -190,11 +207,13 @@ A cream ground, one land green, near-black ink, and four flat marker colours use
 
 A single centred column, max 1160px, with a fluid side gutter of clamp(16px, 4vw, 48px) and 96px of bottom padding. The top bar sits outside the column at the same gutter: wordmark, text nav, and the New invoice capsule pushed to the right.
 
-Each page starts with the headland block (heading, sentence, and on the detail page a back capsule above the heading). The lobe behind it is an SVG path stretched to the block: it starts 220px above the block and half a viewport to the left, and extends 96px below the content. The block is followed by 120px of clear cream (112px on narrow screens) before the first control or sheet. Three coast shapes exist, one each for list, detail, and form pages.
+Signed in, a Test mode note (`.testmode`) opens the column: a white 12px-corner line of text, "Test mode: emails go to you only.", sized to its text. It is not shown when client sending is on. A flash, when present, follows it.
 
-Below the headland, sections stack: a title 48px below the previous sheet and 14px above its own. Action rows wrap with 12px gaps; the primary action sits left and the rest are pushed right. Forms are held to 640px.
+Each page starts with a `.headland` wrapper (heading, sentence, and on the detail page a back capsule above the heading). The lobe behind it is an SVG path stretched to the wrapper: it starts 220px above and half a viewport to the left, and extends 96px below the content. The wrapper is followed by 120px of clear cream (112px on narrow screens) before the first control or sheet. Three coast shapes exist, chosen per page: list (Dashboard, Invoices), detail (invoice), and form (invoice form, Settings, Sign in, Create account).
 
-At 720px and below: the text nav hides and the New invoice capsule stays; tables become stacked rows (client and amount on the first line, date and relative date on the second, description on the third) with the column heads visually hidden; fact lists drop to one column with the label above its value; the paired amount and currency fields keep two columns.
+Below the headland, sections stack: a title 48px below the previous sheet and 14px above its own. The tab row sits 28px above the sheet that follows it. Sheets stacked directly on the invoice page (facts, Reminders, Send history) are 24px apart. Headings inside a plain sheet (Reminders, Send history) are padded in with the content rather than set above it. Action rows wrap with 12px gaps; the primary action sits left and the rest are pushed right. Forms are held to 640px.
+
+At 720px and below: the header wraps to two rows, brand and New invoice on row 1, the main nav (still visible) and a 44px-tall Sign out on row 2; tables become stacked rows (client and amount on the first line, date and relative date on the second, description on the third) with the column heads visually hidden; fact lists drop to one column with the label above its value; the paired amount and currency fields keep two columns; textareas grow to 22rem.
 
 ## Elevation & Depth
 
@@ -205,7 +224,7 @@ There is none. No box-shadow is used for depth anywhere, and there are no gradie
 
 ## Shapes
 
-Two shapes carry the system. The capsule (fully rounded, 999px) is every control, tag, and status message, and the circle is the chip inside it. The soft rectangle is every container: sheets at 22px, form fields at 16px. Nothing has a square corner.
+Two shapes carry the system. The capsule (fully rounded, 999px) is every control, tag, and status message, and the circle is the chip inside it. The soft rectangle is every container: sheets at 22px, form fields and saved-text previews at 16px, the Test mode note at 12px. Nothing has a square corner.
 
 Borders are rare and always Ink: 1.5px on inputs and outlined capsules. Sheets have no border; rows inside them are separated by a 1px Line. The headland is the one organic silhouette, a filled lobe with no outline, and it always bleeds off the top and left edges.
 
@@ -225,7 +244,7 @@ Every control is a capsule: friendly, flat, and obviously pressable.
 
 ### Chips
 - **Tabs:** a row of outlined capsules with 8px gaps. The current one is filled Ink with Cream text and no ring.
-- **Tags:** small capsules (3px 12px, Label size) that carry a count beside a section title. Sun by default, Coral for overdue.
+- **Tags:** small capsules (3px 12px, Label size). Sun by default for a count beside a section title ("Due"). Coral for exceptions only, per the Flag Rule: counts on Overdue and failed reminders, and the "Overdue" and "Failed" tags inside invoice facts.
 
 ### Cards / Containers
 - **Corner Style:** 22px, content clipped to it.
@@ -234,27 +253,36 @@ Every control is a capsule: friendly, flat, and obviously pressable.
 - **Border:** none.
 - **Internal Padding:** tables run edge to edge with 20px cell padding; fact lists and forms pad clamp(20px, 4vw, 36px); empty states pad 40px.
 - Sheets are never nested.
+- **Empty state:** a sheet with 40px padding, one sentence at 1.25rem (max 44ch), and, where an action exists, a capsule. Every tab and the Dashboard has one; the Dashboard's reads "All clear".
 
 ### Tables
-Fixed layout, tabular figures. Column heads are Label size in Ink 2; rows are 15px 20px with a 1px Line above each. Amounts are right-aligned and never wrap. The whole row is the link to the invoice: the client name's link stretches over the row, the row washes Sun at 16% on hover, and keyboard focus draws the ring on the row, inset.
+Fixed layout, tabular figures. Column heads are Label size in Ink 2; rows are 15px 20px with a 1px Line above each. Amounts are right-aligned and never wrap. The whole row is the link to the invoice: the client name's link stretches over the row, the row washes Sun at 16% on hover, and keyboard focus draws a 3px Ink ring on the row, inset. The Dashboard reuses this table for "Reminders that did not send" (Reminder, Client, What went wrong, Amount); the error detail is set small under the sentence.
 
 ### Fact list
-Label and value pairs in two columns (label in Ink 2, sized to content), 14px vertical padding, a 1px Line between rows and none above the first.
+Label and value pairs in two columns (label in Ink 2, sized to content), 14px vertical padding, a 1px Line between rows and none above the first. The invoice page uses it three times: invoice facts, Reminders (type, then state in plain words), and Send history (time, then result).
+
+### Test mode note
+A white 12px-corner line, 6px 16px, 0.9375rem, at the top of every signed-in page. Flat, no icon, no chip.
 
 ### Inputs / Fields
 - **Style:** Sheet White, 1.5px Ink border, 16px corner, 48px minimum height, padding 10px 16px, tabular figures. The label sits above at Body size with 6px gap; an optional hint follows it inline at Label size in Ink 2.
-- **Focus:** the global focus ring at 2px offset, keeping the 16px corner.
+- **Focus:** the global focus ring, a 3px Ink outline, at 2px offset on fields (3px elsewhere), keeping the 16px corner. Sky no longer marks focus; it measured under 3:1 on cream, white, and land.
 - **Error:** border turns Error Red and thickens by a 1px inner ring; the message sits 6px below in Error Red at 0.9375rem and is tied to the field with `aria-describedby`.
+- **Form-level error:** `.error.form-error`, the same red text at the top of the form (sign in, create account), `role="alert"`, 22px gap below.
+- **Textarea:** same skin as an input, min-height 15rem (22rem on phone), vertically resizable, 1.5 line-height. Used for the two reminder texts on Settings.
+- **Pair:** two fields in a row, `1fr` plus 8rem (6.5rem on phone), 16px gap (amount and currency).
+- **Hint:** Label size in Ink 2, inline after a label or as a standalone line at the top of a form. Inline code for variables in hints is Cream with a 6px corner.
+- **Saved-text preview:** under each textarea, a Label-size caption in Ink 2, then a Cream 16px-corner block at 0.9375rem showing how the saved text reads.
 - Fields stack 22px apart.
 
 ### Navigation
-A plain bar: wordmark, text links at Body size with no underline, and the primary capsule at the far right. The current and hovered link take a 2px Ink underline. On narrow screens the text links hide.
+A plain bar: wordmark, main text links (Dashboard, Invoices, Settings) at Body size with no underline, the primary capsule, and an outlined Sign out capsule at the far right. Signed out, the links are Sign in and Create account. The current and hovered link take a 2px Ink underline. On phones the bar wraps to two rows and the nav stays visible; see Layout.
 
 ### Flash
 A confirmation is an Ink capsule with Cream text and a leading Land chip holding an Ink check, sized to its text, above the headland block. It uses `role="status"`.
 
 ### Headland (signature)
-The green lobe behind each page's heading and sentence. One per page, behind content, decorative and hidden from assistive tech. Choose one of the three existing coasts by page type before drawing a new one.
+The green lobe behind each page's heading and sentence. A `.headland` wrapper holds the content and an SVG `.lobe` with a per-page coast path (list, detail, form). One per page, behind content, decorative and hidden from assistive tech. Choose one of the three existing coasts by page type before drawing a new one.
 
 ## Do's and Don'ts
 
@@ -266,6 +294,8 @@ The green lobe behind each page's heading and sentence. One per page, behind con
 - **Do** put tables, fact lists, and forms on a white sheet with a 22px corner.
 - **Do** use tabular figures for money and dates.
 - **Do** keep the chip slide as the only animated gesture and switch it off under reduced motion.
+- **Do** write status as plain Ink words and flag only exceptions (Overdue, Failed) with a Coral tag.
+- **Do** mark focus with the 3px Ink outline.
 
 ### Don't:
 - **Don't** add shadows, gradients, blurs, or textures; a surface is its flat fill.
@@ -273,11 +303,12 @@ The green lobe behind each page's heading and sentence. One per page, behind con
 - **Don't** use a marker colour as text, or Ink 2 on anything but white or cream.
 - **Don't** nest a sheet inside a sheet or square off a corner.
 - **Don't** place more than one headland on a page or let it float clear of the top and left edges.
-- **Don't** give a marker colour a second meaning; coral stays for overdue and delete.
+- **Don't** give a marker colour a second meaning; coral stays for exceptions (overdue, failed) and delete.
+- **Don't** add per-row status pills or colour Open, Paid, or Archived.
+- **Don't** use Sky for focus.
 
 ## Open items
 
 Recorded as work owed, not as rules.
 
-- The typeface loads from Google Fonts. It should be self-hosted so the app runs with no external services.
-- The focus ring is a 3px Ink outline at 3px offset. It was moved from Sky to Ink after Sky measured under 3:1 on cream, white, and the land. Sky no longer marks focus.
+- The typeface loads from Google Fonts. It should be self-hosted so the app runs with no external services; this awaits the owner's permission.
